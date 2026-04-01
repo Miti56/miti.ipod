@@ -14,7 +14,7 @@ import {
   getScrollDirection,
 } from "./helpers";
 import { DeviceThemeName, getTheme } from "@/utils/themes";
-import { useEventListener, useSettings } from "@/hooks";
+import { useClickWheelSound, useEventListener, useSettings } from "@/hooks";
 import {
   dispatchBackClickEvent,
   dispatchCenterClickEvent,
@@ -107,6 +107,7 @@ const CENTER_BUTTON_SIZE = 90;
  */
 export const ClickWheel = () => {
   const { deviceTheme } = useSettings();
+  useClickWheelSound();
 
   const iconColor = useMemo(
     () => getTheme(deviceTheme).clickwheel.button,

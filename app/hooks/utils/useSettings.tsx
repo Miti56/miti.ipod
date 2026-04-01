@@ -17,6 +17,7 @@ export const DEVICE_COLOR_KEY = "ipodSelectedDeviceTheme";
 export const SHUFFLE_MODE_KEY = "ipodShuffleMode";
 export const REPEAT_MODE_KEY = "ipodRepeatMode";
 export const HAPTICS_ENABLED_KEY = "ipodHapticsEnabled";
+export const CLICK_SOUND_ENABLED_KEY = "ipodClickSoundEnabled";
 
 export interface SettingsState {
   colorScheme: ColorScheme;
@@ -24,6 +25,7 @@ export interface SettingsState {
   shuffleMode: ShuffleMode;
   repeatMode: RepeatMode;
   hapticsEnabled: boolean;
+  clickSoundEnabled: boolean;
 }
 
 type SettingsContextType = [
@@ -43,6 +45,7 @@ export type SettingsHook = SettingsState & {
   setShuffleMode: (mode: ShuffleMode) => void;
   setRepeatMode: (mode: RepeatMode) => void;
   setHapticsEnabled: (enabled: boolean) => void;
+  setClickSoundEnabled: (enabled: boolean) => void;
 };
 
 export const useSettings = (): SettingsHook => {
@@ -99,6 +102,14 @@ export const useSettings = (): SettingsHook => {
     [setState]
   );
 
+  const setClickSoundEnabled = useCallback(
+    (enabled: boolean) => {
+      setState((prevState) => ({ ...prevState, clickSoundEnabled: enabled }));
+      localStorage.setItem(CLICK_SOUND_ENABLED_KEY, enabled ? "true" : "false");
+    },
+    [setState]
+  );
+
   return {
     ...state,
     isAuthorized: true,
@@ -107,6 +118,7 @@ export const useSettings = (): SettingsHook => {
     setShuffleMode,
     setRepeatMode,
     setHapticsEnabled,
+    setClickSoundEnabled,
   };
 };
 
@@ -121,6 +133,7 @@ export const SettingsProvider = ({ children }: Props) => {
     shuffleMode: "off",
     repeatMode: "off",
     hapticsEnabled: true,
+    clickSoundEnabled: true,
   });
 
   const handleMount = useCallback(() => {
@@ -135,6 +148,7 @@ export const SettingsProvider = ({ children }: Props) => {
       repeatMode:
         (localStorage.getItem(REPEAT_MODE_KEY) as RepeatMode) ?? "off",
       hapticsEnabled: localStorage.getItem(HAPTICS_ENABLED_KEY) !== "false",
+      clickSoundEnabled: localStorage.getItem(CLICK_SOUND_ENABLED_KEY) !== "false",
     }));
   }, []);
 

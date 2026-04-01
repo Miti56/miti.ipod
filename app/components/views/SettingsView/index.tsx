@@ -30,6 +30,8 @@ const SettingsView = () => {
     repeatMode,
     hapticsEnabled,
     setHapticsEnabled,
+    clickSoundEnabled,
+    setClickSoundEnabled,
   } = useSettings();
   const { setShuffleMode, setRepeatMode } = useAudioPlayer();
 
@@ -131,6 +133,26 @@ const SettingsView = () => {
         ],
         preview: SplitScreenPreview.Settings,
       },
+      {
+        type: "actionSheet",
+        id: "click-sound-action-sheet",
+        label: "Click sounds",
+        listOptions: [
+          {
+            type: "action",
+            isSelected: clickSoundEnabled,
+            label: formatCurrentLabel("On", clickSoundEnabled),
+            onSelect: () => setClickSoundEnabled(true),
+          },
+          {
+            type: "action",
+            isSelected: !clickSoundEnabled,
+            label: formatCurrentLabel("Off", !clickSoundEnabled),
+            onSelect: () => setClickSoundEnabled(false),
+          },
+        ],
+        preview: SplitScreenPreview.Settings,
+      },
     ],
     [
       themeOptions,
@@ -140,6 +162,8 @@ const SettingsView = () => {
       setRepeatMode,
       hapticsEnabled,
       setHapticsEnabled,
+      clickSoundEnabled,
+      setClickSoundEnabled,
     ]
   );
 
