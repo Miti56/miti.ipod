@@ -1,0 +1,18 @@
+{
+  "playlists": [
+    {
+      "id": "favorites",
+      "name": "My Favorites",
+      "curatorName": "Me",
+      "artwork": { "url": "" },
+      "songFiles": []
+    },
+    {
+      "id": "tekno",
+      "name": "TEKNAZO",
+      "curatorName": "Me",
+      "artwork": { "url": "" },
+      "songFiles": []
+    }
+  ]
+}

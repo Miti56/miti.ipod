@@ -15,6 +15,7 @@ import MusicView from "./MusicView";
 import NowPlayingView from "./NowPlayingView";
 import PlaylistView from "./PlaylistView";
 import PlaylistsView from "./PlaylistsView";
+import PortfolioView from "./PortfolioView";
 import SearchView from "./SearchView";
 import SettingsView from "./SettingsView";
 import SongsView from "./SongsView";
@@ -29,6 +30,7 @@ export type ViewProps = {
   games: undefined;
   settings: undefined;
   about: undefined;
+  portfolio: undefined;
   artists: {
     artists?: MediaApi.Artist[];
     inLibrary?: boolean;
@@ -98,6 +100,14 @@ export const VIEW_REGISTRY = {
     isSplitScreen: true,
     preview: SplitScreenPreview.Settings,
   } as ViewConfig<"settings">,
+
+  portfolio: {
+    component: PortfolioView,
+    type: "split",
+    title: "Portfolio",
+    isSplitScreen: true,
+    preview: SplitScreenPreview.Settings,
+  } as ViewConfig<"portfolio">,
 
   // Fullscreen Views
   about: {

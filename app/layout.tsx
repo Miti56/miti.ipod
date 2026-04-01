@@ -1,7 +1,12 @@
-import { getRootAppUrl } from "@/api/spotify/utils";
 import StyledComponentsRegistry from "@/lib/registry";
 import { Metadata, Viewport } from "next";
-import Script from "next/script";
+
+const getRootAppUrl = () => {
+  const isDev = process.env.NODE_ENV === "development";
+  const protocol = isDev ? "http" : "https";
+  const rootUrl = isDev ? "127.0.0.1:3000" : process.env.VERCEL_BASE_URL;
+  return `${protocol}://${rootUrl}`;
+};
 
 const appleTouchIconUrl = `${getRootAppUrl()}/ipod/apple-touch-icon.png`;
 const favicon32Url = `${getRootAppUrl()}/ipod/favicon-32x32.png`;
@@ -61,7 +66,6 @@ export default function RootLayout({
       <body>
         <StyledComponentsRegistry>{children}</StyledComponentsRegistry>
       </body>
-      <Script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js" />
     </html>
   );
 }

@@ -25,7 +25,6 @@ const SongsView = ({ songs }: Props) => {
         },
         imageUrl: Utils.getArtwork(50, song.artwork?.url),
         showNowPlayingView: true,
-        longPressOptions: Utils.getMediaOptions("song", song.id),
       })) ?? [],
     [songs]
   );

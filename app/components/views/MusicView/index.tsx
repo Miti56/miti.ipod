@@ -8,11 +8,9 @@ import {
   useAudioPlayer,
   useMenuHideView,
   useScrollHandler,
-  useSettings,
 } from "@/hooks";
 
 const MusicView = () => {
-  const { isAppleAuthorized } = useSettings();
   const { nowPlayingItem } = useAudioPlayer();
   useMenuHideView("music");
 
@@ -50,7 +48,7 @@ const MusicView = () => {
       },
     ];
 
-    if (isAppleAuthorized && !!nowPlayingItem) {
+    if (!!nowPlayingItem) {
       arr.push({
         type: "view",
         label: "Now playing",
@@ -60,7 +58,7 @@ const MusicView = () => {
     }
 
     return arr;
-  }, [isAppleAuthorized, nowPlayingItem]);
+  }, [nowPlayingItem]);
 
   const [scrollIndex] = useScrollHandler("music", options);
 

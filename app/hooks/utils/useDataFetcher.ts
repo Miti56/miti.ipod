@@ -1,210 +1,169 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { API_URL } from "@/utils/constants/api";
 
-import {
-  useMKDataFetcher,
-  useMusicKit,
-  useSettings,
-  useSpotifyDataFetcher,
-} from "@/hooks";
-
-interface UserLibraryProps {
-  inLibrary?: boolean;
-  userId?: string;
+interface LibraryData {
+  albums: MediaApi.Album[];
+  artists: MediaApi.Artist[];
+  playlists: MediaApi.Playlist[];
 }
 
 interface CommonFetcherProps {
-  /** Data will not be fetched until the `fetch` function is called. */
+  /** Data will not be fetched until `refetch` is called or lazy becomes false. */
   lazy?: boolean;
 }
 
-interface PlaylistFetcherProps extends UserLibraryProps {
+interface AlbumFetcherProps {
   id: string;
-}
-
-interface AlbumFetcherProps extends UserLibraryProps {
-  id: string;
+  inLibrary?: boolean;
 }
 
 interface AlbumsFetcherProps {
   artworkSize?: number;
+  inLibrary?: boolean;
 }
 
-interface ArtistFetcherProps extends UserLibraryProps {
+interface ArtistFetcherProps {
   id: string;
   artworkSize?: number;
+  inLibrary?: boolean;
 }
 
-interface SearchFetcherProps extends UserLibraryProps {
+interface PlaylistFetcherProps {
+  id: string;
+  inLibrary?: boolean;
+}
+
+interface SearchFetcherProps {
   query: string;
 }
 
-const useDataFetchers = () => {
-  const spotifyDataFetcher = useSpotifyDataFetcher();
-  const appleDataFetcher = useMKDataFetcher();
-  const { service, isAppleAuthorized, isSpotifyAuthorized } = useSettings();
-  const { isConfigured } = useMusicKit();
-
-  const enabled =
-    (service === "apple" && isAppleAuthorized && isConfigured) ||
-    (service === "spotify" && isSpotifyAuthorized);
-
-  return { spotifyDataFetcher, appleDataFetcher, service, enabled };
+/** Fetches the full music library from the server-side API route. Cached for the session. */
+const useLibrary = (enabled = true) => {
+  return useQuery<LibraryData>({
+    queryKey: ["library"],
+    queryFn: async (): Promise<LibraryData> => {
+      const res = await fetch(`${API_URL}/music`);
+      if (!res.ok) throw new Error("Failed to fetch music library");
+      return res.json();
+    },
+    enabled,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
 };
 
 export const useFetchAlbum = (
   options: CommonFetcherProps & AlbumFetcherProps
 ) => {
-  const { spotifyDataFetcher, appleDataFetcher, service, enabled } =
-    useDataFetchers();
-
-  return useQuery({
-    queryKey: ["album", { id: options.id }],
-    queryFn: async () => {
-      if (service === "apple") {
-        return appleDataFetcher.fetchAlbum(options.id, options.inLibrary);
-      } else if (service === "spotify") {
-        return spotifyDataFetcher.fetchAlbum({ id: options.id });
-      }
-    },
-    enabled: enabled && !options.lazy,
-  });
+  const { data: library, isLoading } = useLibrary(!options.lazy);
+  const album = library?.albums.find((a) => a.id === options.id);
+  return { data: album, isLoading };
 };
 
 export const useFetchAlbums = (
   options: CommonFetcherProps & AlbumsFetcherProps
 ) => {
-  const { spotifyDataFetcher, appleDataFetcher, service, enabled } =
-    useDataFetchers();
+  const { data: library, isLoading } = useLibrary(!options.lazy);
 
-  return useInfiniteQuery({
-    queryKey: ["albums"],
-    queryFn: async ({ pageParam }) => {
-      const params = {
-        pageParam,
-        limit: 50,
-      };
-
-      if (service === "apple") {
-        return appleDataFetcher.fetchAlbums(params);
-      } else if (service === "spotify") {
-        return spotifyDataFetcher.fetchAlbums(params);
-      }
-    },
-    enabled: enabled && !options.lazy,
-    getNextPageParam: (lastPage) => lastPage?.nextPageParam,
-    initialPageParam: 0,
-  });
+  return {
+    data: library
+      ? { pages: [{ data: library.albums, nextPageParam: undefined }] }
+      : undefined,
+    isLoading,
+    fetchNextPage: async () => {},
+    isFetchingNextPage: false,
+    hasNextPage: false,
+  };
 };
 
 export const useFetchArtists = (options: CommonFetcherProps) => {
-  const { spotifyDataFetcher, appleDataFetcher, service, enabled } =
-    useDataFetchers();
+  const { data: library, isLoading } = useLibrary(!options.lazy);
 
-  return useInfiniteQuery({
-    queryKey: ["artists"],
-    queryFn: async ({ pageParam }) => {
-      const params = {
-        pageParam,
-        limit: 20,
-        after: `${pageParam}`,
-      };
-
-      if (service === "apple") {
-        return appleDataFetcher.fetchArtists(params);
-      } else if (service === "spotify") {
-        return spotifyDataFetcher.fetchArtists(params);
-      }
-    },
-    enabled: enabled && !options.lazy,
-    // TODO: Figure out a better way to deal with `after` param
-    getNextPageParam: (lastPage) =>
-      service === "spotify"
-        ? (lastPage?.after as any)
-        : lastPage?.nextPageParam,
-    initialPageParam: 0,
-  });
+  return {
+    data: library
+      ? { pages: [{ data: library.artists, nextPageParam: undefined }] }
+      : undefined,
+    isLoading,
+    fetchNextPage: async () => {},
+    isFetchingNextPage: false,
+    hasNextPage: false,
+  };
 };
 
 export const useFetchArtistAlbums = (
   options: CommonFetcherProps & ArtistFetcherProps
 ) => {
-  const { spotifyDataFetcher, appleDataFetcher, service, enabled } =
-    useDataFetchers();
+  const { data: library, isLoading } = useLibrary(!options.lazy);
 
-  return useQuery({
-    queryKey: ["artistAlbums", { id: options.id }],
-    queryFn: async () => {
-      if (service === "apple") {
-        return appleDataFetcher.fetchArtistAlbums(
-          options.id,
-          options.inLibrary
-        );
-      } else if (service === "spotify") {
-        return spotifyDataFetcher.fetchArtist(options.id);
-      }
-    },
-    enabled: enabled && !options.lazy,
-  });
+  const artist = library?.artists.find((a) => a.id === options.id);
+  const albums =
+    artist?.albums ??
+    library?.albums.filter((a) => a.artistName === artist?.name) ??
+    [];
+
+  return { data: albums, isLoading };
 };
 
 export const useFetchPlaylists = (options: CommonFetcherProps) => {
-  const { spotifyDataFetcher, appleDataFetcher, service, enabled } =
-    useDataFetchers();
+  const { data: library, isLoading } = useLibrary(!options.lazy);
 
-  return useInfiniteQuery({
-    queryKey: ["playlists"],
-    queryFn: async ({ pageParam }) => {
-      const params = {
-        limit: 20,
-        pageParam,
-      };
-
-      if (service === "apple") {
-        return appleDataFetcher.fetchPlaylists(params);
-      } else if (service === "spotify") {
-        return spotifyDataFetcher.fetchPlaylists(params);
-      }
-    },
-    enabled: enabled && !options.lazy,
-    getNextPageParam: (lastPage) => lastPage?.nextPageParam,
-    initialPageParam: 0,
-  });
+  return {
+    data: library
+      ? { pages: [{ data: library.playlists, nextPageParam: undefined }] }
+      : undefined,
+    isLoading,
+    fetchNextPage: async () => {},
+    isFetchingNextPage: false,
+    hasNextPage: false,
+  };
 };
 
 export const useFetchPlaylist = (
   options: CommonFetcherProps & PlaylistFetcherProps
 ) => {
-  const { spotifyDataFetcher, appleDataFetcher, service, enabled } =
-    useDataFetchers();
-
-  return useQuery({
-    queryKey: ["playlists", { id: options.id }],
-    queryFn: async () => {
-      if (service === "apple") {
-        return appleDataFetcher.fetchPlaylist(options.id, options.inLibrary);
-      } else if (service === "spotify") {
-        return spotifyDataFetcher.fetchPlaylist(options.id);
-      }
-    },
-    enabled: enabled && !options.lazy,
-  });
+  const { data: library, isLoading } = useLibrary(!options.lazy);
+  const playlist = library?.playlists.find((p) => p.id === options.id);
+  return { data: playlist, isLoading };
 };
 
 export const useFetchSearchResults = (
   options: CommonFetcherProps & SearchFetcherProps
 ) => {
-  const { spotifyDataFetcher, appleDataFetcher, service, enabled } =
-    useDataFetchers();
+  const { data: library } = useLibrary();
 
-  return useQuery({
+  return useQuery<MediaApi.SearchResults>({
     queryKey: ["search", { query: options.query }],
-    queryFn: async () => {
-      if (service === "spotify") {
-        return spotifyDataFetcher.fetchSearchResults(options.query);
-      } else if (service === "apple") {
-        return appleDataFetcher.fetchSearchResults(options.query);
+    queryFn: async (): Promise<MediaApi.SearchResults> => {
+      const q = options.query.toLowerCase().trim();
+
+      if (!q || !library) {
+        return { artists: [], songs: [], albums: [], playlists: [] };
       }
+
+      const matchedAlbums = library.albums.filter((a) =>
+        a.name.toLowerCase().includes(q)
+      );
+
+      const matchedArtists = library.artists.filter((a) =>
+        a.name.toLowerCase().includes(q)
+      );
+
+      const allSongs = library.albums.flatMap((a) => a.songs);
+      const matchedSongs = allSongs.filter((s) =>
+        s.name.toLowerCase().includes(q)
+      );
+
+      const matchedPlaylists = library.playlists.filter((p) =>
+        p.name.toLowerCase().includes(q)
+      );
+
+      return {
+        albums: matchedAlbums,
+        artists: matchedArtists,
+        songs: matchedSongs,
+        playlists: matchedPlaylists,
+      };
     },
-    enabled: enabled && !options.lazy,
+    enabled: !options.lazy,
   });
 };

@@ -31,7 +31,6 @@ const ArtistView = ({ id, inLibrary = false }: Props) => {
           imageUrl: Utils.getArtwork(100, album.artwork?.url),
           viewId: "album",
           props: { id: album.id ?? "", inLibrary },
-          longPressOptions: Utils.getMediaOptions("album", album.id),
         })
       ) ?? [],
     [albums, inLibrary]

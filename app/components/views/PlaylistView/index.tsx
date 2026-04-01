@@ -32,7 +32,6 @@ const PlaylistView = ({ id, inLibrary = false }: Props) => {
           startPosition: index,
         },
         showNowPlayingView: true,
-        longPressOptions: Utils.getMediaOptions("song", song.id),
       })) ?? [],
     [playlist]
   );

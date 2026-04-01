@@ -12,6 +12,7 @@ export { default as MusicView } from "./MusicView";
 export { default as NowPlayingView } from "./NowPlayingView";
 export { default as PlaylistView } from "./PlaylistView";
 export { default as PlaylistsView } from "./PlaylistsView";
+export { default as PortfolioView } from "./PortfolioView";
 export { default as SearchView } from "./SearchView";
 export { default as SettingsView } from "./SettingsView";
 export { default as SongsView } from "./SongsView";

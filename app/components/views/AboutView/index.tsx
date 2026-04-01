@@ -44,18 +44,18 @@ const AboutView = () => {
   const options: SelectableListOption[] = [
     {
       type: "link",
-      label: "GitHub Repo",
-      url: "https://github.com/tvillarete/ipod-classic-js",
+      label: "GitHub",
+      url: "https://github.com/yourusername",
     },
     {
       type: "link",
-      label: "My Website",
-      url: "http://tannerv.com",
+      label: "Portfolio",
+      url: "https://yourportfolio.com",
     },
     {
       type: "link",
       label: "LinkedIn",
-      url: "https://linkedin.com/in/tvillarete",
+      url: "https://linkedin.com/in/yourusername",
     },
   ];
 
@@ -69,11 +69,11 @@ const AboutView = () => {
           <Title>iPod.js</Title>
         </TitleContainer>
         <Description>
-          Made with{" "}
+          Built with{" "}
           <span aria-label="heart" role="img">
             ❤️
           </span>{" "}
-          by Tanner Villarete
+          using React &amp; Next.js
         </Description>
         <SelectableList options={options} activeIndex={scrollIndex} />
       </ListContainer>

@@ -8,10 +8,7 @@ import { SplitScreenPreview } from "@/components/previews";
 import {
   useAudioPlayer,
   useEventListener,
-  useMusicKit,
   useScrollHandler,
-  useSettings,
-  useSpotifySDK,
   useViewContext,
 } from "@/hooks";
 import { IpodEvent } from "@/utils/events";
@@ -21,11 +18,7 @@ const strings = {
 };
 
 const HomeView = () => {
-  const { isAuthorized } = useSettings();
-  const { signIn: signInWithApple, isConfigured: isMkConfigured } =
-    useMusicKit();
   const { nowPlayingItem } = useAudioPlayer();
-  const { signIn: signInWithSpotify } = useSpotifySDK();
   const { showView, viewStack } = useViewContext();
 
   const options: SelectableListOption[] = useMemo(
@@ -44,6 +37,12 @@ const HomeView = () => {
       },
       {
         type: "view",
+        label: "Portfolio",
+        viewId: "portfolio",
+        preview: SplitScreenPreview.Settings,
+      },
+      {
+        type: "view",
         label: "Games",
         viewId: "games",
         preview: SplitScreenPreview.Games,
@@ -54,25 +53,6 @@ const HomeView = () => {
         viewId: "settings",
         preview: SplitScreenPreview.Settings,
       },
-      // Show the sign in buttons if the user is not logged in.
-      ...getConditionalOption(!isAuthorized, {
-        type: "actionSheet",
-        id: "signin-popup",
-        label: "Sign in",
-        listOptions: [
-          {
-            type: "action",
-            label: "Apple Music",
-            onSelect: signInWithApple,
-          },
-          {
-            type: "action",
-            label: "Spotify",
-            onSelect: signInWithSpotify,
-          },
-        ],
-        preview: SplitScreenPreview.Music,
-      }),
       ...getConditionalOption(!!nowPlayingItem, {
         type: "view",
         label: strings.nowPlaying,
@@ -80,7 +60,7 @@ const HomeView = () => {
         preview: SplitScreenPreview.NowPlaying,
       }),
     ],
-    [isAuthorized, nowPlayingItem, signInWithApple, signInWithSpotify]
+    [nowPlayingItem]
   );
 
   const [scrollIndex] = useScrollHandler("home", options);
@@ -94,7 +74,6 @@ const HomeView = () => {
       activeView.id !== "coverFlow" &&
       activeView.id !== "keyboard";
 
-    // Only show the now playing view if we're playing a song and not already on that view.
     if (shouldShowNowPlaying) {
       showView("nowPlaying");
     }

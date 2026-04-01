@@ -1,8 +1,7 @@
 import { useMemo } from "react";
 
-import { AuthPrompt, KenBurns, LoadingScreen } from "@/components";
+import { KenBurns, LoadingScreen } from "@/components";
 import { motion } from "framer-motion";
-import { useSettings } from "@/hooks";
 import styled from "styled-components";
 import { useFetchAlbums } from "@/hooks/utils/useDataFetcher";
 import { previewSlideRight } from "@/animation";
@@ -18,18 +17,15 @@ const Container = styled(motion.div)`
 `;
 
 const MusicPreview = () => {
-  const { isSpotifyAuthorized, isAppleAuthorized } = useSettings();
-
   const {
     data: albums,
     isLoading,
-    error,
   } = useFetchAlbums({
     artworkSize: 400,
   });
 
   const artworkUrls = useMemo(() => {
-    if (albums && !error) {
+    if (albums) {
       return albums.pages.flatMap(
         (page) =>
           page?.data
@@ -39,13 +35,11 @@ const MusicPreview = () => {
     }
 
     return [];
-  }, [albums, error]);
+  }, [albums]);
 
   return (
     <Container {...previewSlideRight}>
-      {!isSpotifyAuthorized && !isAppleAuthorized ? (
-        <AuthPrompt message="Sign in to view your library" />
-      ) : isLoading && !albums ? (
+      {isLoading && !albums ? (
         <LoadingScreen backgroundColor="linear-gradient(180deg, #B1B5C0 0%, #686E7A 100%)" />
       ) : (
         <KenBurns urls={artworkUrls} />

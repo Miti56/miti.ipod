@@ -1,7 +1,5 @@
-import { useCallback } from "react";
-
 import { Controls } from "@/components";
-import { useAudioPlayer, useEffectOnce, useMKEventListener } from "@/hooks";
+import { useAudioPlayer, useEffectOnce } from "@/hooks";
 import styled from "styled-components";
 import { Unit } from "@/utils/constants";
 import * as Utils from "@/utils";
@@ -95,7 +93,7 @@ interface Props {
   onHide: () => void;
 }
 
-const NowPlaying = ({ hideArtwork, onHide }: Props) => {
+const NowPlaying = ({ hideArtwork, onHide: _onHide }: Props) => {
   const {
     nowPlayingItem,
     updateNowPlayingItem,
@@ -104,22 +102,10 @@ const NowPlaying = ({ hideArtwork, onHide }: Props) => {
     repeatMode,
   } = useAudioPlayer();
 
-  const handlePlaybackChange = useCallback(
-    ({ state }: { state: MusicKit.PlaybackStates }) => {
-      /** Hide the now playing view if the playback state is "Completed" */
-      if (state === MusicKit.PlaybackStates.completed) {
-        onHide();
-      }
-    },
-    [onHide]
-  );
-
   useEffectOnce(() => {
     updateNowPlayingItem();
     updatePlaybackInfo();
   });
-
-  useMKEventListener("playbackStateDidChange", handlePlaybackChange);
 
   const artworkUrl = Utils.getArtwork(300, nowPlayingItem?.artwork?.url);
 
