@@ -1,0 +1,44 @@
+[build]
+command = "npm run build"
+publish = "dist"
+
+# SPA fallback
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
+
+# 🚫 Block obvious bad bots
+[[redirects]]
+from = "/*"
+to = "/blocked.html"
+status = 403
+force = true
+conditions = {User-Agent = ["curl", "wget", "python", "bot", "crawler", "spider"]}
+
+# 🧠 Tell search engines to stay away (optional)
+[[headers]]
+for = "/*"
+[headers.values]
+X-Robots-Tag = "noindex, nofollow"
+
+# ⚡ Aggressive caching
+[[headers]]
+for = "/assets/*"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "/*.js"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "/*.css"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "/*.woff2"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
