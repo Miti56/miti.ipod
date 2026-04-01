@@ -11,7 +11,7 @@ export const getArtwork = (size: number | string, url?: string) => {
 };
 
 export const setDocumentSongTitle = (songName?: string) => {
-  document.title = songName ? `${songName} – iPod.js` : "iPod.js";
+  document.title = songName ? `${songName} – Miti's iPod` : "Miti's iPod";
 };
 
 export const formatPlaybackTime = (seconds: number) => {

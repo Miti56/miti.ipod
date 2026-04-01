@@ -43,7 +43,7 @@ const useScrollHandler = (
    * Useful for fetching the next page of data before the user reaches the end of the list.
    */
   onNearEndOfList?: (currentLength: number) => void
-): [number] => {
+): [number, (clickedIndex: number) => Promise<void>] => {
   const { triggerHaptics } = useHapticFeedback();
   const { showView, showPopup, showActionSheet, viewStack, setPreview } =
     useViewContext();
@@ -109,9 +109,9 @@ const useScrollHandler = (
     });
   }, [debouncedUpdatePreview, isActive, triggerHaptics]);
 
-  /** Parses the selected option for a new view to show or song to play. */
-  const handleCenterClick = useCallback(async () => {
-    const option = options[index];
+  /** Parses the option at the given index and runs its action. */
+  const executeOptionAtIndex = useCallback(async (i: number) => {
+    const option = options[i];
     if (!isActive || !option) return;
     triggerHaptics();
 
@@ -164,7 +164,6 @@ const useScrollHandler = (
     }
   }, [
     options,
-    index,
     isActive,
     triggerHaptics,
     nowPlayingItem,
@@ -174,6 +173,17 @@ const useScrollHandler = (
     showActionSheet,
     play,
   ]);
+
+  /** Parses the selected option for a new view to show or song to play. */
+  const handleCenterClick = useCallback(async () => {
+    await executeOptionAtIndex(index);
+  }, [executeOptionAtIndex, index]);
+
+  const handleItemClick = useCallback(async (clickedIndex: number) => {
+    if (!isActive) return;
+    setIndex(clickedIndex);
+    await executeOptionAtIndex(clickedIndex);
+  }, [isActive, executeOptionAtIndex]);
 
   const handleCenterLongClick = useCallback(async () => {
     const option = options[index];
@@ -205,7 +215,7 @@ const useScrollHandler = (
   useEventListener<IpodEvent>("forwardscroll", handleForwardScroll);
   useEventListener<IpodEvent>("backwardscroll", handleBackwardScroll);
 
-  return [index];
+  return [index, handleItemClick] as const;
 };
 
 export default useScrollHandler;

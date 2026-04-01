@@ -29,13 +29,14 @@ const SongsView = ({ songs }: Props) => {
     [songs]
   );
 
-  const [scrollIndex] = useScrollHandler("songs", options);
+  const [scrollIndex, handleItemClick] = useScrollHandler("songs", options);
 
   return (
     <SelectableList
       options={options}
       activeIndex={scrollIndex}
       emptyMessage="No songs to show"
+      onItemClick={handleItemClick}
     />
   );
 };

@@ -1,76 +1,26 @@
-import { SelectableList, SelectableListOption } from "@/components";
+import SelectableList, {
+  SelectableListOption,
+} from "@/components/SelectableList";
 import { useMenuHideView, useScrollHandler } from "@/hooks";
-import styled from "styled-components";
-import { Unit } from "@/utils/constants";
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-`;
-
-const TitleContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: ${Unit.MD} ${Unit.MD} 0;
-`;
-
-const Title = styled.h3`
-  margin: 0;
-  font-size: 16px;
-  font-weight: 900;
-`;
-
-const Description = styled.h3`
-  margin: 0 0 ${Unit.MD};
-  font-size: 14px;
-  font-weight: normal;
-  text-align: center;
-`;
-
-const ListContainer = styled.div`
-  flex: 1;
-`;
+import { SOCIAL_LINKS } from "@/data/personal";
 
 const PortfolioView = () => {
   useMenuHideView("portfolio");
 
-  const options: SelectableListOption[] = [
-    {
-      type: "link",
-      label: "GitHub",
-      url: "https://github.com/yourusername",
-    },
-    {
-      type: "link",
-      label: "Portfolio",
-      url: "https://yourportfolio.com",
-    },
-    {
-      type: "link",
-      label: "LinkedIn",
-      url: "https://linkedin.com/in/yourusername",
-    },
-  ];
+  const options: SelectableListOption[] = SOCIAL_LINKS.map((link) => ({
+    type: "link",
+    label: link.label,
+    url: link.url,
+  }));
 
-  const [scrollIndex] = useScrollHandler("portfolio", options);
+  const [scrollIndex, handleItemClick] = useScrollHandler("portfolio", options);
 
   return (
-    <Container>
-      <ListContainer>
-        <TitleContainer>
-          <Title>Portfolio</Title>
-        </TitleContainer>
-        <Description>
-          Built with{" "}
-          <span aria-label="heart" role="img">
-            ❤️
-          </span>{" "}
-          using React &amp; Next.js
-        </Description>
-        <SelectableList options={options} activeIndex={scrollIndex} />
-      </ListContainer>
-    </Container>
+    <SelectableList
+      options={options}
+      activeIndex={scrollIndex}
+      onItemClick={handleItemClick}
+    />
   );
 };
 

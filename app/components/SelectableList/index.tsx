@@ -110,6 +110,7 @@ interface Props {
   loading?: boolean;
   loadingNextItems?: boolean;
   emptyMessage?: string;
+  onItemClick?: (index: number) => void;
 }
 
 const SelectableList = ({
@@ -118,6 +119,7 @@ const SelectableList = ({
   loading,
   loadingNextItems,
   emptyMessage = "Nothing to see here",
+  onItemClick,
 }: Props) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -173,6 +175,7 @@ const SelectableList = ({
               key={`option-${option.label}-${index}`}
               option={option}
               isActive={index === activeIndex}
+              onClick={() => onItemClick?.(index)}
             />
           ))}
         </Container>

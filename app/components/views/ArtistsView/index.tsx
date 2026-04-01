@@ -62,7 +62,7 @@ const ArtistsView = ({
     }
   }, [fetchNextPage, isFetchingNextPage]);
 
-  const [scrollIndex] = useScrollHandler(
+  const [scrollIndex, handleItemClick] = useScrollHandler(
     "artists",
     options,
     undefined,
@@ -76,6 +76,7 @@ const ArtistsView = ({
       options={options}
       activeIndex={scrollIndex}
       emptyMessage="No saved artists"
+      onItemClick={handleItemClick}
     />
   ) : (
     <AuthPrompt message="Sign in to view your artists" />

@@ -4,7 +4,6 @@ import SelectableList, {
   SelectableListOption,
 } from "@/components/SelectableList";
 import { useMenuHideView, useScrollHandler } from "@/hooks";
-import * as Utils from "@/utils";
 import { useFetchAlbum } from "@/hooks/utils/useDataFetcher";
 
 interface Props {
@@ -35,7 +34,7 @@ const AlbumView = ({ id, inLibrary = false }: Props) => {
     [album]
   );
 
-  const [scrollIndex] = useScrollHandler("album", options);
+  const [scrollIndex, handleItemClick] = useScrollHandler("album", options);
 
   return (
     <SelectableList
@@ -43,6 +42,7 @@ const AlbumView = ({ id, inLibrary = false }: Props) => {
       options={options}
       activeIndex={scrollIndex}
       emptyMessage="No saved songs"
+      onItemClick={handleItemClick}
     />
   );
 };

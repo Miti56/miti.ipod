@@ -1,8 +1,10 @@
 import { SelectableList, SelectableListOption } from "@/components";
 import { useMenuHideView, useScrollHandler } from "@/hooks";
+import { useMusicStats } from "@/hooks/utils/useDataFetcher";
 import styled from "styled-components";
 import { Unit } from "@/utils/constants";
 import { APP_URL } from "@/utils/constants/api";
+import { PERSONAL_INFO, SOCIAL_LINKS } from "@/data/personal";
 
 const Container = styled.div`
   display: flex;
@@ -39,43 +41,39 @@ const ListContainer = styled.div`
   flex: 1;
 `;
 
+const StorageInfo = styled.div`
+  text-align: center;
+  font-size: 12px;
+  color: rgb(100, 100, 100);
+  padding: 0 ${Unit.MD} ${Unit.SM};
+`;
+
 const AboutView = () => {
   useMenuHideView("about");
-  const options: SelectableListOption[] = [
-    {
-      type: "link",
-      label: "GitHub",
-      url: "https://github.com/yourusername",
-    },
-    {
-      type: "link",
-      label: "Portfolio",
-      url: "https://yourportfolio.com",
-    },
-    {
-      type: "link",
-      label: "LinkedIn",
-      url: "https://linkedin.com/in/yourusername",
-    },
-  ];
+  const { songCount, totalSizeBytes, capacityGB } = useMusicStats();
+  const usedGB = (totalSizeBytes / (1024 ** 3)).toFixed(1);
 
-  const [scrollIndex] = useScrollHandler("about", options);
+  const options: SelectableListOption[] = SOCIAL_LINKS.map((link) => ({
+    type: "link",
+    label: link.label,
+    url: link.url,
+  }));
+
+  const [scrollIndex, handleItemClick] = useScrollHandler("about", options);
 
   return (
     <Container>
       <ListContainer>
         <TitleContainer>
           <Image alt="iPod" src={`${APP_URL}/ipod_logo.svg`} />
-          <Title>Miti&apos;s iPod</Title>
+          <Title>{PERSONAL_INFO.deviceTitle}</Title>
         </TitleContainer>
-        <Description>
-          Built with{" "}
-          <span aria-label="heart" role="img">
-            ❤️
-          </span>{" "}
-          using React &amp; Next.js
-        </Description>
-        <SelectableList options={options} activeIndex={scrollIndex} />
+        <Description>{PERSONAL_INFO.tagline}</Description>
+        <StorageInfo>
+          <div>{songCount} songs</div>
+          <div>{usedGB} GB used of {capacityGB} GB</div>
+        </StorageInfo>
+        <SelectableList options={options} activeIndex={scrollIndex} onItemClick={handleItemClick} />
       </ListContainer>
     </Container>
   );

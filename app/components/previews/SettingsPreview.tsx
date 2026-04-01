@@ -35,8 +35,8 @@ const SettingsPreview = () => {
   return (
     <Container>
       <Image alt="React logo" src={`${APP_URL}/react_logo.svg`} />
-      <Text>iPod.js</Text>
-      <Subtext>by Tanner V</Subtext>
+      <Text>Miti&apos;s iPod</Text>
+      <Subtext>by Miti</Subtext>
     </Container>
   );
 };

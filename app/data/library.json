@@ -1,4 +1,5 @@
 {
+  "capacity": 64,
   "playlists": [
     {
       "id": "favorites",

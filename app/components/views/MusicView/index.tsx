@@ -1,5 +1,6 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 
+import { getConditionalOption } from "@/components/SelectableList";
 import SelectableList, {
   SelectableListOption,
 } from "@/components/SelectableList";
@@ -14,8 +15,8 @@ const MusicView = () => {
   const { nowPlayingItem } = useAudioPlayer();
   useMenuHideView("music");
 
-  const options: SelectableListOption[] = useMemo(() => {
-    const arr: SelectableListOption[] = [
+  const options: SelectableListOption[] = useMemo(
+    () => [
       {
         type: "view",
         label: "Cover Flow",
@@ -46,23 +47,19 @@ const MusicView = () => {
         viewId: "search",
         preview: SplitScreenPreview.Music,
       },
-    ];
-
-    if (!!nowPlayingItem) {
-      arr.push({
+      ...getConditionalOption(!!nowPlayingItem, {
         type: "view",
-        label: "Now playing",
+        label: "Now Playing",
         viewId: "nowPlaying",
         preview: SplitScreenPreview.NowPlaying,
-      });
-    }
+      }),
+    ],
+    [nowPlayingItem]
+  );
 
-    return arr;
-  }, [nowPlayingItem]);
+  const [scrollIndex, handleItemClick] = useScrollHandler("music", options);
 
-  const [scrollIndex] = useScrollHandler("music", options);
-
-  return <SelectableList options={options} activeIndex={scrollIndex} />;
+  return <SelectableList options={options} activeIndex={scrollIndex} onItemClick={handleItemClick} />;
 };
 
 export default MusicView;

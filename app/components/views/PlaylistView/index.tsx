@@ -36,7 +36,7 @@ const PlaylistView = ({ id, inLibrary = false }: Props) => {
     [playlist]
   );
 
-  const [scrollIndex] = useScrollHandler("playlist", options);
+  const [scrollIndex, handleItemClick] = useScrollHandler("playlist", options);
 
   return (
     <SelectableList
@@ -44,6 +44,7 @@ const PlaylistView = ({ id, inLibrary = false }: Props) => {
       options={options}
       activeIndex={scrollIndex}
       emptyMessage="No songs in this playlist"
+      onItemClick={handleItemClick}
     />
   );
 };

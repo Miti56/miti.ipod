@@ -123,7 +123,7 @@ const SearchView = () => {
     }
   });
 
-  const [scrollIndex] = useScrollHandler("search", options);
+  const [scrollIndex, handleItemClick] = useScrollHandler("search", options);
 
   return isAuthorized ? (
     <SelectableList
@@ -131,6 +131,7 @@ const SearchView = () => {
       options={options}
       activeIndex={scrollIndex}
       emptyMessage="No results"
+      onItemClick={handleItemClick}
     />
   ) : (
     <AuthPrompt message="Sign in to search" />

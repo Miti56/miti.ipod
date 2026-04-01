@@ -5,6 +5,11 @@ interface LibraryData {
   albums: MediaApi.Album[];
   artists: MediaApi.Artist[];
   playlists: MediaApi.Playlist[];
+  stats?: {
+    songCount: number;
+    totalSizeBytes: number;
+    capacityGB: number;
+  };
 }
 
 interface CommonFetcherProps {
@@ -50,6 +55,11 @@ const useLibrary = (enabled = true) => {
     staleTime: Infinity,
     gcTime: Infinity,
   });
+};
+
+export const useMusicStats = () => {
+  const { data: library } = useLibrary();
+  return library?.stats ?? { songCount: 0, totalSizeBytes: 0, capacityGB: 64 };
 };
 
 export const useFetchAlbum = (

@@ -37,8 +37,8 @@ const AlbumsView = ({ albums, inLibrary = true }: Props) => {
         type: "view",
         headerTitle: album.name,
         label: album.name,
-        subLabel: album.artistName,
-        image: { url: Utils.getArtwork(300, album.artwork?.url) ?? "" },
+        sublabel: album.artistName,
+        imageUrl: Utils.getArtwork(100, album.artwork?.url),
         viewId: "album",
         props: { id: album.id ?? "", inLibrary },
       })) ?? []
@@ -51,7 +51,7 @@ const AlbumsView = ({ albums, inLibrary = true }: Props) => {
     }
   }, [fetchNextPage, isFetchingNextPage]);
 
-  const [scrollIndex] = useScrollHandler(
+  const [scrollIndex, handleItemClick] = useScrollHandler(
     "albums",
     options,
     undefined,
@@ -65,6 +65,7 @@ const AlbumsView = ({ albums, inLibrary = true }: Props) => {
       options={options}
       activeIndex={scrollIndex}
       emptyMessage="No albums"
+      onItemClick={handleItemClick}
     />
   ) : (
     <AuthPrompt />

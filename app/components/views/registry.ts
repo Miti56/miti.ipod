@@ -106,7 +106,7 @@ export const VIEW_REGISTRY = {
     type: "split",
     title: "Portfolio",
     isSplitScreen: true,
-    preview: SplitScreenPreview.Settings,
+    preview: SplitScreenPreview.Portfolio,
   } as ViewConfig<"portfolio">,
 
   // Fullscreen Views

@@ -60,19 +60,19 @@ const SettingsView = () => {
           {
             type: "action",
             isSelected: shuffleMode === "off",
-            label: `Off ${shuffleMode === "off" ? "(Current)" : ""}`,
+            label: formatCurrentLabel("Off", shuffleMode === "off"),
             onSelect: () => setShuffleMode("off"),
           },
           {
             type: "action",
             isSelected: shuffleMode === "songs",
-            label: `Songs ${shuffleMode === "songs" ? "(Current)" : ""}`,
+            label: formatCurrentLabel("Songs", shuffleMode === "songs"),
             onSelect: () => setShuffleMode("songs"),
           },
           {
             type: "action",
             isSelected: shuffleMode === "albums",
-            label: `Albums ${shuffleMode === "albums" ? "(Current)" : ""}`,
+            label: formatCurrentLabel("Albums", shuffleMode === "albums"),
             onSelect: () => setShuffleMode("albums"),
           },
         ],
@@ -86,19 +86,19 @@ const SettingsView = () => {
           {
             type: "action",
             isSelected: repeatMode === "off",
-            label: `Off ${repeatMode === "off" ? "(Current)" : ""}`,
+            label: formatCurrentLabel("Off", repeatMode === "off"),
             onSelect: () => setRepeatMode("off"),
           },
           {
             type: "action",
             isSelected: repeatMode === "one",
-            label: `One ${repeatMode === "one" ? "(Current)" : ""}`,
+            label: formatCurrentLabel("One", repeatMode === "one"),
             onSelect: () => setRepeatMode("one"),
           },
           {
             type: "action",
             isSelected: repeatMode === "all",
-            label: `All ${repeatMode === "all" ? "(Current)" : ""}`,
+            label: formatCurrentLabel("All", repeatMode === "all"),
             onSelect: () => setRepeatMode("all"),
           },
         ],
@@ -119,13 +119,13 @@ const SettingsView = () => {
           {
             type: "action",
             isSelected: hapticsEnabled,
-            label: `On ${hapticsEnabled ? "(Current)" : ""}`,
+            label: formatCurrentLabel("On", hapticsEnabled),
             onSelect: () => setHapticsEnabled(true),
           },
           {
             type: "action",
             isSelected: !hapticsEnabled,
-            label: `Off ${!hapticsEnabled ? "(Current)" : ""}`,
+            label: formatCurrentLabel("Off", !hapticsEnabled),
             onSelect: () => setHapticsEnabled(false),
           },
         ],
@@ -143,9 +143,9 @@ const SettingsView = () => {
     ]
   );
 
-  const [scrollIndex] = useScrollHandler("settings", options);
+  const [scrollIndex, handleItemClick] = useScrollHandler("settings", options);
 
-  return <SelectableList options={options} activeIndex={scrollIndex} />;
+  return <SelectableList options={options} activeIndex={scrollIndex} onItemClick={handleItemClick} />;
 };
 
 export default SettingsView;

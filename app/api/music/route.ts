@@ -80,6 +80,15 @@ export async function GET() {
   // Sort by track number within each album
   songs.sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0));
 
+  // Compute total file sizes
+  let totalSizeBytes = 0;
+  for (const filename of files) {
+    try {
+      const stat = fs.statSync(path.join(musicDir, filename));
+      totalSizeBytes += stat.size;
+    } catch { /* ignore */ }
+  }
+
   // Group songs into albums
   const albumMap = new Map<string, MediaApi.Album>();
   for (const song of songs) {
@@ -123,9 +132,12 @@ export async function GET() {
 
   // Load playlist definitions from library.json
   let playlists: MediaApi.Playlist[] = [];
+  let capacityGB = 64;
   try {
     const libraryPath = path.join(process.cwd(), "app", "data", "library.json");
     const libraryJson = JSON.parse(fs.readFileSync(libraryPath, "utf-8"));
+
+    capacityGB = (libraryJson as any).capacity ?? 64;
 
     playlists = (libraryJson.playlists ?? []).map(
       (p: PlaylistDefinition): MediaApi.Playlist => ({
@@ -143,5 +155,14 @@ export async function GET() {
     // library.json missing or invalid — no playlists
   }
 
-  return NextResponse.json({ albums, artists, playlists });
+  return NextResponse.json({
+    albums,
+    artists,
+    playlists,
+    stats: {
+      songCount: songs.length,
+      totalSizeBytes,
+      capacityGB,
+    },
+  });
 }

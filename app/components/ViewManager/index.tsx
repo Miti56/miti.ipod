@@ -13,18 +13,7 @@ import {
   PopupInstance,
   KeyboardInstance,
 } from "@/providers/ViewContextProvider";
-import styled from "styled-components";
 import { IpodEvent } from "@/utils/events";
-
-/** Prevents the user from scrolling the display with a mouse. */
-const Mask = styled.div`
-  z-index: 100;
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-`;
 
 const hasSplitScreenPreview = (viewId: string) => {
   const config = VIEW_REGISTRY[viewId as keyof typeof VIEW_REGISTRY];
@@ -87,7 +76,6 @@ const ViewManager = () => {
       <ActionSheetViewManager viewStack={actionSheetViews} />
       <PopupViewManager viewStack={popupViews} />
       <KeyboardViewManager viewStack={keyboardViews} />
-      <Mask />
     </div>
   );
 };

@@ -54,7 +54,7 @@ const PlaylistsView = ({ playlists, inLibrary = true }: Props) => {
     }
   }, [fetchNextPage, isFetchingNextPage]);
 
-  const [scrollIndex] = useScrollHandler(
+  const [scrollIndex, handleItemClick] = useScrollHandler(
     "playlists",
     options,
     undefined,
@@ -68,6 +68,7 @@ const PlaylistsView = ({ playlists, inLibrary = true }: Props) => {
       loading={isLoading}
       loadingNextItems={isFetchingNextPage}
       options={options}
+      onItemClick={handleItemClick}
     />
   ) : (
     <AuthPrompt message="Sign in to view your playlists" />

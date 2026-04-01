@@ -36,7 +36,7 @@ const ArtistView = ({ id, inLibrary = false }: Props) => {
     [albums, inLibrary]
   );
 
-  const [scrollIndex] = useScrollHandler("artist", options);
+  const [scrollIndex, handleItemClick] = useScrollHandler("artist", options);
 
   return (
     <SelectableList
@@ -44,6 +44,7 @@ const ArtistView = ({ id, inLibrary = false }: Props) => {
       options={options}
       activeIndex={scrollIndex}
       emptyMessage="No albums by this artist"
+      onItemClick={handleItemClick}
     />
   );
 };

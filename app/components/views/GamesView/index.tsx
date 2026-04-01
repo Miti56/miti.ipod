@@ -15,9 +15,9 @@ const GamesView = () => {
     },
   ];
 
-  const [scrollIndex] = useScrollHandler("games", options);
+  const [scrollIndex, handleItemClick] = useScrollHandler("games", options);
 
-  return <SelectableList options={options} activeIndex={scrollIndex} />;
+  return <SelectableList options={options} activeIndex={scrollIndex} onItemClick={handleItemClick} />;
 };
 
 export default GamesView;

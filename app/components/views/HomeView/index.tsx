@@ -13,10 +13,6 @@ import {
 } from "@/hooks";
 import { IpodEvent } from "@/utils/events";
 
-const strings = {
-  nowPlaying: "Now Playing",
-};
-
 const HomeView = () => {
   const { nowPlayingItem } = useAudioPlayer();
   const { showView, viewStack } = useViewContext();
@@ -39,7 +35,7 @@ const HomeView = () => {
         type: "view",
         label: "Portfolio",
         viewId: "portfolio",
-        preview: SplitScreenPreview.Settings,
+        preview: SplitScreenPreview.Portfolio,
       },
       {
         type: "view",
@@ -55,7 +51,7 @@ const HomeView = () => {
       },
       ...getConditionalOption(!!nowPlayingItem, {
         type: "view",
-        label: strings.nowPlaying,
+        label: "Now Playing",
         viewId: "nowPlaying",
         preview: SplitScreenPreview.NowPlaying,
       }),
@@ -63,7 +59,7 @@ const HomeView = () => {
     [nowPlayingItem]
   );
 
-  const [scrollIndex] = useScrollHandler("home", options);
+  const [scrollIndex, handleItemClick] = useScrollHandler("home", options);
 
   const handleIdleState = useCallback(() => {
     const activeView = viewStack[viewStack.length - 1];
@@ -81,7 +77,7 @@ const HomeView = () => {
 
   useEventListener<IpodEvent>("idle", handleIdleState);
 
-  return <SelectableList options={options} activeIndex={scrollIndex} />;
+  return <SelectableList options={options} activeIndex={scrollIndex} onItemClick={handleItemClick} />;
 };
 
 export default HomeView;

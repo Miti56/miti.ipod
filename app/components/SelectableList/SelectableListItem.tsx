@@ -67,9 +67,10 @@ const Icon = styled.img<{ $size?: number }>`
 interface Props {
   option: SelectableListOption;
   isActive: boolean;
+  onClick?: () => void;
 }
 
-const SelectableListItem = ({ option, isActive }: Props) => {
+const SelectableListItem = ({ option, isActive, onClick }: Props) => {
   const { nowPlayingItem, playbackInfo } = useAudioPlayer();
 
   // Check if this specific song is currently playing
@@ -90,7 +91,7 @@ const SelectableListItem = ({ option, isActive }: Props) => {
     isPlayingSong && playbackInfo.isPlaying && !playbackInfo.isPaused;
 
   return (
-    <Container $isActive={isActive}>
+    <Container $isActive={isActive} onClick={onClick} style={{ cursor: "pointer" }}>
       {option.imageUrl && <Image alt="List item" src={option.imageUrl} />}
       <LabelContainer>
         <Label>{option.label}</Label>
