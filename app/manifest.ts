@@ -2,10 +2,10 @@ import { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "iPod.js",
-    short_name: "iPod.js",
+    name: "Miti's iPod",
+    short_name: "Miti's iPod",
     description: "An iPod Classic built for the web.",
-    start_url: "/ipod",
+    start_url: "/",
     display: "standalone",
     theme_color: "#ffffff",
     background_color: "#ffffff",

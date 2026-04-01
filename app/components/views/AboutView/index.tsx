@@ -66,7 +66,7 @@ const AboutView = () => {
       <ListContainer>
         <TitleContainer>
           <Image alt="iPod" src={`${APP_URL}/ipod_logo.svg`} />
-          <Title>iPod.js</Title>
+          <Title>Miti&apos;s iPod</Title>
         </TitleContainer>
         <Description>
           Built with{" "}

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import * as mm from "music-metadata";
-import { APP_URL } from "@/utils/constants/api";
 
 export const dynamic = "force-dynamic";
 
@@ -56,12 +55,12 @@ export async function GET() {
         albumName: common.album ?? "Singles",
         artwork: {
           url: hasArtwork
-            ? `/ipod/api/music/artwork?file=${encodedFilename}`
+            ? `/api/music/artwork?file=${encodedFilename}`
             : "",
         },
         duration: Math.round((format.duration ?? 0) * 1000),
         trackNumber: common.track.no ?? 0,
-        url: `${APP_URL}/music/${filename}`,
+        url: `/music/${filename}`,
       });
     } catch {
       // Fallback: derive info from filename if metadata parsing fails
@@ -73,7 +72,7 @@ export async function GET() {
         artwork: { url: "" },
         duration: 0,
         trackNumber: 0,
-        url: `${APP_URL}/music/${filename}`,
+        url: `/music/${filename}`,
       });
     }
   }
@@ -136,7 +135,7 @@ export async function GET() {
         url: "",
         artwork: p.artwork ?? { url: "" },
         songs: (p.songFiles ?? [])
-          .map((filename) => songs.find((s) => s.url === `${APP_URL}/music/${filename}`))
+          .map((filename) => songs.find((s) => s.url === `/music/${filename}`))
           .filter((s): s is MediaApi.Song => !!s),
       })
     );
