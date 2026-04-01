@@ -1,4 +1,4 @@
-import { SplitScreenPreview, Previews, ANIMATED_PREVIEWS } from "@/components/previews";
+import { Previews, ANIMATED_PREVIEWS } from "@/components/previews";
 import { AnimatePresence } from "framer-motion";
 import { useViewContext } from "@/hooks";
 import { Screen } from "@/utils/constants";
