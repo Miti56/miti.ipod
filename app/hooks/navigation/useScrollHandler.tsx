@@ -67,16 +67,16 @@ const useScrollHandler = (
   const debouncedUpdatePreview = useDebouncedCallback(updatePreview, 750);
 
   const handleForwardScroll = useCallback(() => {
-    if (isActive) {
-      triggerHaptics(true);
-    }
+    if (!isActive) return;
 
     setIndex((prevIndex) => {
-      if (prevIndex < options.length - 1 && isActive) {
+      if (prevIndex < options.length - 1) {
+        // Fire haptics only when the index actually advances.
+        triggerHaptics();
         debouncedUpdatePreview(prevIndex + 1);
 
-        // Trigger near-end-of-list callback when we're halfway through the current list.
         const nextIndex = prevIndex + 1;
+        // Trigger near-end-of-list callback when halfway through the list.
         if (nextIndex === Math.round(options.length / 2)) {
           onNearEndOfList?.(options.length);
         }
@@ -95,12 +95,12 @@ const useScrollHandler = (
   ]);
 
   const handleBackwardScroll = useCallback(() => {
-    if (isActive) {
-      triggerHaptics(true);
-    }
+    if (!isActive) return;
 
     setIndex((prevIndex) => {
-      if (prevIndex > 0 && isActive) {
+      if (prevIndex > 0) {
+        // Fire haptics only when the index actually retreats.
+        triggerHaptics();
         debouncedUpdatePreview(prevIndex - 1);
         return prevIndex - 1;
       }

@@ -2,52 +2,27 @@ import { useCallback, useMemo } from "react";
 import { haptic } from "ios-haptics";
 import { useSettings } from "@/hooks";
 
-const canUseVibrate =
-  typeof navigator !== "undefined" && "vibrate" in navigator;
-
 /**
  * Provides haptic feedback for user interactions.
  *
- * Uses ios-haptics library for button clicks (iOS 17.4+ Taptic Engine with automatic
- * fallback to navigator.vibrate() on Android/older iOS).
+ * Uses ios-haptics for all events — it targets the iOS 17.4+ Taptic Engine
+ * via a hidden checkbox trick, with automatic fallback to navigator.vibrate()
+ * on Android and other platforms.
  *
- * For scroll events, directly uses navigator.vibrate() since pan gestures don't trigger
- * the iOS checkbox-based haptics properly.
+ * The previous forceVibrate=true path used navigator.vibrate() directly for
+ * scroll events, but that API is unsupported on iOS Safari so scroll haptics
+ * never fired on the primary target platform. Using haptic() for everything
+ * is the correct fix.
  */
 const useHapticFeedback = () => {
   const { hapticsEnabled } = useSettings();
 
-  const triggerHaptics = useCallback(
-    (forceVibrate = false) => {
-      // Check if haptics are enabled in settings
-      if (!hapticsEnabled) {
-        return;
-      }
+  const triggerHaptics = useCallback(() => {
+    if (!hapticsEnabled) return;
+    haptic();
+  }, [hapticsEnabled]);
 
-      if (forceVibrate) {
-        // Use vibrate API directly for scroll events (pan gestures)
-        // iOS checkbox haptics don't work during pan/swipe interactions
-        if (canUseVibrate) {
-          navigator.vibrate(10);
-        }
-        return;
-      }
-
-      // For button clicks: use ios-haptics (Taptic Engine on iOS 17.4+)
-      // Library automatically falls back to navigator.vibrate() on other platforms
-      haptic();
-    },
-    [hapticsEnabled]
-  );
-
-  const hooks = useMemo(
-    () => ({
-      triggerHaptics,
-    }),
-    [triggerHaptics]
-  );
-
-  return hooks;
+  return useMemo(() => ({ triggerHaptics }), [triggerHaptics]);
 };
 
 export default useHapticFeedback;

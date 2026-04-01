@@ -3,25 +3,31 @@ import fs from "fs";
 import path from "path";
 import * as mm from "music-metadata";
 
-export const dynamic = "force-dynamic";
-
 export async function GET(request: NextRequest) {
-  const filename = request.nextUrl.searchParams.get("file");
+  const fileParam = request.nextUrl.searchParams.get("file");
 
-  if (!filename) {
+  if (!fileParam) {
     return new NextResponse(null, { status: 400 });
   }
 
-  // Prevent path traversal attacks
-  const safeName = path.basename(decodeURIComponent(filename));
-  const filePath = path.join(process.cwd(), "public", "music", safeName);
+  // `searchParams.get` already decodes percent-encoding, so
+  // "My%20Playlist%2Ftrack.mp3" becomes "My Playlist/track.mp3".
+  const requestedPath = decodeURIComponent(fileParam);
+  const musicDir = path.join(process.cwd(), "public", "music");
+  const resolvedPath = path.normalize(path.join(musicDir, requestedPath));
 
-  if (!fs.existsSync(filePath)) {
+  // Security: reject any path that escapes public/music/.
+  const relative = path.relative(musicDir, resolvedPath);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    return new NextResponse(null, { status: 403 });
+  }
+
+  if (!fs.existsSync(resolvedPath)) {
     return new NextResponse(null, { status: 404 });
   }
 
   try {
-    const metadata = await mm.parseFile(filePath, { skipPostHeaders: true });
+    const metadata = await mm.parseFile(resolvedPath, { skipPostHeaders: true });
     const picture = metadata.common.picture?.[0];
 
     if (!picture) {
