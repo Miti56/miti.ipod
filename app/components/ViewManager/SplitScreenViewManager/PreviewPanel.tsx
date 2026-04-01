@@ -1,4 +1,4 @@
-import { SplitScreenPreview, Previews } from "@/components/previews";
+import { SplitScreenPreview, Previews, ANIMATED_PREVIEWS } from "@/components/previews";
 import { AnimatePresence } from "framer-motion";
 import { useViewContext } from "@/hooks";
 import { Screen } from "@/utils/constants";
@@ -35,14 +35,15 @@ interface Props {
 const PreviewPanel = ({ $isHidden: isHidden }: Props) => {
   const { preview } = useViewContext();
   const PreviewComponent = Previews[preview];
+  const isAnimated = ANIMATED_PREVIEWS.has(preview);
 
   return (
     <Container $isHidden={isHidden}>
       <AnimatePresence>
-        {/* Music preview slides in, whereas the other previews simply appear. */}
-        {preview === SplitScreenPreview.Music && <PreviewComponent />}
+        {/* Animated previews (Music, Photos) slide in; others simply appear. */}
+        {isAnimated && <PreviewComponent />}
       </AnimatePresence>
-      {preview !== SplitScreenPreview.Music && <PreviewComponent />}
+      {!isAnimated && <PreviewComponent />}
     </Container>
   );
 };

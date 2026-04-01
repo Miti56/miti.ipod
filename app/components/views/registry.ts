@@ -13,6 +13,8 @@ import GamesView from "./GamesView";
 import HomeView from "./HomeView";
 import MusicView from "./MusicView";
 import NowPlayingView from "./NowPlayingView";
+import PhotoLibraryView from "./PhotoLibraryView";
+import PhotoViewerView from "./PhotoViewerView";
 import PlaylistView from "./PlaylistView";
 import PlaylistsView from "./PlaylistsView";
 import PortfolioView from "./PortfolioView";
@@ -46,6 +48,8 @@ export type ViewProps = {
   search: { initialQuery?: string };
   brickGame: undefined;
   coverFlow: undefined;
+  photoLibrary: undefined;
+  photoViewer: { url: string; name: string };
 };
 
 export type ViewId = keyof ViewProps;
@@ -179,6 +183,21 @@ export const VIEW_REGISTRY = {
     title: "Search",
     preview: SplitScreenPreview.Music,
   } as ViewConfig<"search">,
+
+  photoLibrary: {
+    component: PhotoLibraryView,
+    type: "full",
+    title: "Photo Library",
+    preview: SplitScreenPreview.Photos,
+  } as ViewConfig<"photoLibrary">,
+
+  photoViewer: {
+    component: PhotoViewerView,
+    type: "full",
+    title: "Photo",
+    preview: SplitScreenPreview.Photos,
+    disableLongPress: true,
+  } as ViewConfig<"photoViewer">,
 
   brickGame: {
     component: BrickGameView,

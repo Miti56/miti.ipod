@@ -33,6 +33,12 @@ const HomeView = () => {
       },
       {
         type: "view",
+        label: "Photo Library",
+        viewId: "photoLibrary",
+        preview: SplitScreenPreview.Photos,
+      },
+      {
+        type: "view",
         label: "Portfolio",
         viewId: "portfolio",
         preview: SplitScreenPreview.Portfolio,
