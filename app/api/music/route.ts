@@ -3,7 +3,9 @@ import fs from "fs";
 import path from "path";
 import * as mm from "music-metadata";
 
-export const dynamic = "force-dynamic";
+// Cache the library listing in Netlify's CDN for 1 hour.
+// A new deployment automatically invalidates this cache.
+export const dynamic = "force-static";
 
 const SUPPORTED_EXTENSIONS = [".mp3", ".m4a", ".wav", ".ogg", ".flac", ".aac"];
 
