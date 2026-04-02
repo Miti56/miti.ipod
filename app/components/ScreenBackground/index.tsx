@@ -13,14 +13,8 @@ import { Screen } from "@/utils/constants";
 //   BlobCanvas  — ambient blob animation, fills the screen area.
 //   WaveCanvas  — audio-reactive ocean waves, same dimensions.
 //   WhiteOverlay— opaque white div sitting above both canvases.
-//
-// Desktop:  WhiteOverlay is always opacity 1 → solid white screen (normal).
-// Mobile, glass=true (playing + NowPlaying/CoverFlow):
-//             WhiteOverlay fades to opacity 0 → both canvases become visible.
-// Mobile, glass=false: WhiteOverlay stays at opacity 1 → normal white screen.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Blob config ────────────────────────────────────────────────────────────────
 const BLOBS = [
   { cx:0.30, cy:0.42, rx:[0.30,0.10], ry:[0.22,0.12], sx:[0.07,0.13], sy:[0.09,0.11], radius:0.90, alpha:0.92, pi:0 },
   { cx:0.72, cy:0.60, rx:[0.24,0.09], ry:[0.28,0.11], sx:[0.08,0.11], sy:[0.07,0.14], radius:0.82, alpha:0.86, pi:1 },
@@ -29,7 +23,6 @@ const BLOBS = [
   { cx:0.84, cy:0.30, rx:[0.22,0.10], ry:[0.26,0.08], sx:[0.09,0.12], sy:[0.08,0.10], radius:0.60, alpha:0.68, pi:4 },
 ] as const;
 
-// ── Wave layer config (scaled up from EqVisualizer for in-screen display) ─────
 const LAYERS = [
   { blur: 14, amp: 0.300, speeds: [0.11, 0.07, 0.04], freqs: [1.4, 2.3, 0.8],  yFrac: 0.535, alpha: 0.18, pi: 0 },
   { blur: 6,  amp: 0.240, speeds: [0.18, 0.11, 0.06], freqs: [1.9, 3.1, 1.2],  yFrac: 0.515, alpha: 0.28, pi: 1 },
@@ -84,7 +77,6 @@ const BlobCanvas = styled.canvas`
   height: 100%;
   filter: blur(40px) saturate(1.35);
 
-  /* Halve the blur radius on mobile — same visual effect, ~4× cheaper on GPU */
   ${Screen.SM.MediaQuery} {
     filter: blur(20px) saturate(1.2);
   }
@@ -101,11 +93,8 @@ const WhiteOverlay = styled.div<{ $glass: boolean }>`
   position: absolute;
   inset: 0;
   background: white;
-
-  /* Desktop: always opaque — no transition, no glass effect */
   opacity: 1;
 
-  /* Mobile only: fade out when glass is active */
   ${Screen.SM.MediaQuery} {
     transition: opacity 1.1s ease;
     opacity: ${({ $glass }) => ($glass ? 0 : 1)};
@@ -122,17 +111,13 @@ const ScreenBackground = () => {
   const waveCanvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef        = useRef(0);
 
-  // Blob phases
   const blobPhasesRef = useRef<number[][]>(
     BLOBS.map(() => Array.from({ length: 4 }, () => Math.random() * Math.PI * 2))
   );
-
-  // Wave phases
   const wavePhasesRef = useRef<number[][]>(
     LAYERS.map(() => [Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28])
   );
 
-  // Color refs
   const curBlobs = useRef<RGB[]>(DEFAULT_PALETTE.blobs.slice(0, 5).map(c => [...c] as RGB));
   const curBg    = useRef<RGB>([...DEFAULT_PALETTE.bgBase] as RGB);
   const tgtBlobs = useRef(curBlobs.current);
@@ -140,7 +125,6 @@ const ScreenBackground = () => {
   const curWaves = useRef<RGB[]>(DEFAULT_PALETTE.waves.map(c => [...c] as RGB));
   const tgtWaves = useRef(curWaves.current);
 
-  // Audio state
   const bassS      = useRef<Spr>({ v: 0, x: 0 });
   const midS       = useRef<Spr>({ v: 0, x: 0 });
   const bassFloor  = useRef(0);
@@ -171,23 +155,30 @@ const ScreenBackground = () => {
     const wCtx = wCanvas.getContext("2d");
     if (!bCtx || !wCtx) return;
 
-    // On mobile we cap to 30fps and skip expensive per-layer ctx.filter blurs.
-    const isMobileRef  = { current: window.innerWidth <= 576 };
-    const lastDrawRef  = { current: 0 };
-    const MOBILE_INTERVAL = 1000 / 30; // ms between frames at 30fps
+    let isMobile = window.innerWidth <= 576;
+
+    // DOWN-SCALE BLOBS: Renders 80% fewer pixels to GPU
+    const DOWNSCALE = 0.2;
 
     const resize = () => {
-      isMobileRef.current = window.innerWidth <= 576;
-      // Walk up: WaveCanvas → Wrapper → ScreenContainer
+      isMobile = window.innerWidth <= 576;
       const container = bCanvas.parentElement?.parentElement;
       if (!container) return;
+
       const W = container.clientWidth;
       const H = container.clientHeight;
-      bCanvas.width  = W;
-      bCanvas.height = H;
+
+      // Blobs run at 20% resolution (CSS stretches it)
+      bCanvas.width  = W * DOWNSCALE;
+      bCanvas.height = H * DOWNSCALE;
+      bCanvas.style.width = `${W}px`;
+      bCanvas.style.height = `${H}px`;
+
+      // Waves stay crisp at 100% resolution
       wCanvas.width  = W;
       wCanvas.height = H;
     };
+
     resize();
     const ro = new ResizeObserver(resize);
     const container = bCanvas.parentElement?.parentElement;
@@ -202,20 +193,15 @@ const ScreenBackground = () => {
       if (!alive) return;
       rafRef.current = requestAnimationFrame(frame);
 
-      const isMobile = isMobileRef.current;
-
-      // Mobile: cap to 30fps to halve GPU work
-      if (isMobile && now - lastDrawRef.current < MOBILE_INTERVAL) return;
-      if (isMobile) lastDrawRef.current = now;
-
-      const dt = Math.min((now - lastNow) / 1000, 0.05);
+      // FIXED TIME CLAMP: Allow dt up to 0.1s to catch up on dropped frames
+      const dt = Math.min((now - lastNow) / 1000, 0.1);
       lastNow = now;
 
-      const W = bCanvas!.width;
-      const H = bCanvas!.height;
-      if (W === 0 || H === 0) return;
+      // Extract the logical display width/height
+      const lW = wCanvas!.width;
+      const lH = wCanvas!.height;
+      if (lW === 0 || lH === 0) return;
 
-      // ── Color lerp — toward album palette when playing, default when idle ────
       const isActive = activeRef.current;
       const blobTarget = isActive ? tgtBlobs.current : DEFAULT_PALETTE.blobs.slice(0, 5) as RGB[];
       const bgTarget   = isActive ? tgtBg.current    : DEFAULT_PALETTE.bgBase as RGB;
@@ -227,11 +213,12 @@ const ScreenBackground = () => {
       const cw = curWaves.current;
       for (let i = 0; i < 5; i++) cw[i] = lerpRgb(cw[i], waveTarget[i]);
 
-      // ── Blob canvas ─────────────────────────────────────────────────────────
+      // ── Blob canvas (Downscaled) ────────────────────────────────────────────
+      bCtx!.save();
+      bCtx!.scale(DOWNSCALE, DOWNSCALE);
       bCtx!.fillStyle = `rgb(${cs(curBg.current)})`;
-      bCtx!.fillRect(0, 0, W, H);
+      bCtx!.fillRect(0, 0, lW, lH);
 
-      // On mobile render 3 blobs instead of 5 — the CSS blur hides the reduction
       const blobCount = isMobile ? 3 : BLOBS.length;
       BLOBS.slice(0, blobCount).forEach((blob, bi) => {
         const ph = blobPhasesRef.current[bi];
@@ -240,9 +227,9 @@ const ScreenBackground = () => {
         ph[2] += dt * blob.sy[0];
         ph[3] += dt * blob.sy[1];
 
-        const bx = blob.cx * W + blob.rx[0] * W * Math.sin(ph[0]) + blob.rx[1] * W * Math.sin(ph[1]);
-        const by = blob.cy * H + blob.ry[0] * H * Math.sin(ph[2]) + blob.ry[1] * H * Math.sin(ph[3]);
-        const r  = blob.radius * Math.min(W, H);
+        const bx = blob.cx * lW + blob.rx[0] * lW * Math.sin(ph[0]) + blob.rx[1] * lW * Math.sin(ph[1]);
+        const by = blob.cy * lH + blob.ry[0] * lH * Math.sin(ph[2]) + blob.ry[1] * lH * Math.sin(ph[3]);
+        const r  = blob.radius * Math.min(lW, lH);
         const rgb = cb[blob.pi];
 
         const grad = bCtx!.createRadialGradient(bx, by, 0, bx, by, r);
@@ -255,13 +242,14 @@ const ScreenBackground = () => {
         bCtx!.arc(bx, by, r, 0, Math.PI * 2);
         bCtx!.fill();
       });
+      bCtx!.restore();
 
-      // ── Wave canvas ─────────────────────────────────────────────────────────
+      // ── Wave canvas (Full res, optimized drawing) ───────────────────────────
       const targetOp = isActive ? 1.0 : 0.22;
       opacRef.current += (targetOp - opacRef.current) * 0.022;
       const op = opacRef.current;
 
-      wCtx!.clearRect(0, 0, W, H);
+      wCtx!.clearRect(0, 0, lW, lH);
 
       if (op >= 0.01) {
         LAYERS.forEach((layer, li) => {
@@ -304,26 +292,23 @@ const ScreenBackground = () => {
         const breathe   = 1 + 0.030 * Math.sin(now * 0.00065);
         const beatBoost = 1 + beatRef.current * 0.42;
 
-        // On mobile skip the two most-blurred background layers (ctx.filter blur
-        // is the single most expensive 2D canvas operation on mobile GPU).
-        const layerStart = isMobile ? 2 : 0;
-        LAYERS.slice(layerStart).forEach((layer, li) => {
-          const ph  = wavePhasesRef.current[layerStart + li];
+        // FIXED: Restore all layers on mobile so the bass visualization remains
+        LAYERS.forEach((layer, li) => {
+          const ph  = wavePhasesRef.current[li];
           const rgb = cw[layer.pi];
 
-          // On mobile use coarser sampling (fewer points per wave)
-          const STEP = isMobile ? 6 : (layer.blur > 8 ? 10 : layer.blur > 0 ? 5 : 3);
-          const N    = Math.min(Math.ceil(W / STEP) + 2, MAX_N);
+          const STEP = layer.blur > 8 ? 10 : layer.blur > 0 ? 5 : 3;
+          const N    = Math.min(Math.ceil(lW / STEP) + 2, MAX_N);
 
           const IDLE_FLOOR = 0.35;
-          const totalAmp = layer.amp * H * (IDLE_FLOOR + (1 - IDLE_FLOOR) * bassVal) * breathe * beatBoost;
-          const midAmp   = layer.amp * H * midVal * 0.30;
-          const centerY  = H * layer.yFrac;
+          const totalAmp = layer.amp * lH * (IDLE_FLOOR + (1 - IDLE_FLOOR) * bassVal) * breathe * beatBoost;
+          const midAmp   = layer.amp * lH * midVal * 0.30;
+          const centerY  = lH * layer.yFrac;
           let minY = Infinity;
 
           for (let i = 0; i < N; i++) {
             const x  = i * STEP - STEP;
-            const nx = x / W;
+            const nx = x / lW;
 
             let y = W0 * Math.sin(layer.freqs[0] * Math.PI * 2 * nx + ph[0])
               + W1 * Math.sin(layer.freqs[1] * Math.PI * 2 * nx + ph[1])
@@ -337,10 +322,14 @@ const ScreenBackground = () => {
           }
 
           wCtx!.save();
-          // Skip ctx.filter blur on mobile — hugely expensive, not worth it
-          if (!isMobile && layer.blur > 0) wCtx!.filter = `blur(${layer.blur}px)`;
 
-          const fillGrad = wCtx!.createLinearGradient(0, minY - 10, 0, minY + H * 0.62);
+          if (layer.blur > 0) {
+            wCtx!.filter = isMobile ? "none" : `blur(${layer.blur}px)`;
+          } else {
+            wCtx!.filter = "none";
+          }
+
+          const fillGrad = wCtx!.createLinearGradient(0, minY - 10, 0, minY + lH * 0.62);
           fillGrad.addColorStop(0,    `rgba(${cs(rgb)}, ${layer.alpha * op})`);
           fillGrad.addColorStop(0.28, `rgba(${cs(rgb)}, ${layer.alpha * op * 0.42})`);
           fillGrad.addColorStop(0.65, `rgba(${cs(rgb)}, ${layer.alpha * op * 0.10})`);
@@ -348,15 +337,21 @@ const ScreenBackground = () => {
 
           wCtx!.beginPath();
           traceCurve(wCtx!, pxs, pys, N);
-          wCtx!.lineTo(pxs[N - 1], H + 10);
-          wCtx!.lineTo(pxs[0] - STEP, H + 10);
+          wCtx!.lineTo(pxs[N - 1], lH + 10);
+          wCtx!.lineTo(pxs[0] - STEP, lH + 10);
           wCtx!.closePath();
           wCtx!.fillStyle = fillGrad;
           wCtx!.fill();
 
           if (layer.blur === 0) {
-            wCtx!.shadowBlur  = 24 + bassVal * 22;
-            wCtx!.shadowColor = `rgba(${cs(rgb)}, 0.65)`;
+            // FIXED: Do not calculate or draw shadows on mobile
+            if (!isMobile) {
+              wCtx!.shadowBlur  = 24 + bassVal * 22;
+              wCtx!.shadowColor = `rgba(${cs(rgb)}, 0.65)`;
+            } else {
+              wCtx!.shadowBlur = 0;
+              wCtx!.shadowColor = "transparent";
+            }
 
             wCtx!.beginPath();
             traceCurve(wCtx!, pxs, pys, N);
@@ -376,7 +371,7 @@ const ScreenBackground = () => {
       cancelAnimationFrame(rafRef.current);
       ro.disconnect();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
