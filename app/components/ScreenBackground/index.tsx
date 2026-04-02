@@ -83,6 +83,11 @@ const BlobCanvas = styled.canvas`
   width: 100%;
   height: 100%;
   filter: blur(40px) saturate(1.35);
+
+  /* Halve the blur radius on mobile — same visual effect, ~4× cheaper on GPU */
+  ${Screen.SM.MediaQuery} {
+    filter: blur(20px) saturate(1.2);
+  }
 `;
 
 const WaveCanvas = styled.canvas`
@@ -166,7 +171,13 @@ const ScreenBackground = () => {
     const wCtx = wCanvas.getContext("2d");
     if (!bCtx || !wCtx) return;
 
+    // On mobile we cap to 30fps and skip expensive per-layer ctx.filter blurs.
+    const isMobileRef  = { current: window.innerWidth <= 576 };
+    const lastDrawRef  = { current: 0 };
+    const MOBILE_INTERVAL = 1000 / 30; // ms between frames at 30fps
+
     const resize = () => {
+      isMobileRef.current = window.innerWidth <= 576;
       // Walk up: WaveCanvas → Wrapper → ScreenContainer
       const container = bCanvas.parentElement?.parentElement;
       if (!container) return;
@@ -191,6 +202,12 @@ const ScreenBackground = () => {
       if (!alive) return;
       rafRef.current = requestAnimationFrame(frame);
 
+      const isMobile = isMobileRef.current;
+
+      // Mobile: cap to 30fps to halve GPU work
+      if (isMobile && now - lastDrawRef.current < MOBILE_INTERVAL) return;
+      if (isMobile) lastDrawRef.current = now;
+
       const dt = Math.min((now - lastNow) / 1000, 0.05);
       lastNow = now;
 
@@ -214,7 +231,9 @@ const ScreenBackground = () => {
       bCtx!.fillStyle = `rgb(${cs(curBg.current)})`;
       bCtx!.fillRect(0, 0, W, H);
 
-      BLOBS.forEach((blob, bi) => {
+      // On mobile render 3 blobs instead of 5 — the CSS blur hides the reduction
+      const blobCount = isMobile ? 3 : BLOBS.length;
+      BLOBS.slice(0, blobCount).forEach((blob, bi) => {
         const ph = blobPhasesRef.current[bi];
         ph[0] += dt * blob.sx[0];
         ph[1] += dt * blob.sx[1];
@@ -285,11 +304,15 @@ const ScreenBackground = () => {
         const breathe   = 1 + 0.030 * Math.sin(now * 0.00065);
         const beatBoost = 1 + beatRef.current * 0.42;
 
-        LAYERS.forEach((layer, li) => {
-          const ph  = wavePhasesRef.current[li];
+        // On mobile skip the two most-blurred background layers (ctx.filter blur
+        // is the single most expensive 2D canvas operation on mobile GPU).
+        const layerStart = isMobile ? 2 : 0;
+        LAYERS.slice(layerStart).forEach((layer, li) => {
+          const ph  = wavePhasesRef.current[layerStart + li];
           const rgb = cw[layer.pi];
 
-          const STEP = layer.blur > 8 ? 10 : layer.blur > 0 ? 5 : 3;
+          // On mobile use coarser sampling (fewer points per wave)
+          const STEP = isMobile ? 6 : (layer.blur > 8 ? 10 : layer.blur > 0 ? 5 : 3);
           const N    = Math.min(Math.ceil(W / STEP) + 2, MAX_N);
 
           const IDLE_FLOOR = 0.35;
@@ -314,7 +337,8 @@ const ScreenBackground = () => {
           }
 
           wCtx!.save();
-          if (layer.blur > 0) wCtx!.filter = `blur(${layer.blur}px)`;
+          // Skip ctx.filter blur on mobile — hugely expensive, not worth it
+          if (!isMobile && layer.blur > 0) wCtx!.filter = `blur(${layer.blur}px)`;
 
           const fillGrad = wCtx!.createLinearGradient(0, minY - 10, 0, minY + H * 0.62);
           fillGrad.addColorStop(0,    `rgba(${cs(rgb)}, ${layer.alpha * op})`);

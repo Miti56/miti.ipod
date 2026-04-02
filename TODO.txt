@@ -1,4 +1,5 @@
 -Add pixel like effect to the screen. (add realism in general)
 -Add stickers/more personal/use over time
 
-
+-Menu Button does not vibrate
+-improve performance on mobile

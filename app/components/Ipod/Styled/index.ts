@@ -54,6 +54,10 @@ export const ScreenContainer = styled.div`
   filter: url(#ipod-lcd);
   animation: fadeFromBlack 0.5s;
 
+  ${Screen.SM.MediaQuery} {
+    filter: none;
+  }
+
   @keyframes fadeFromBlack {
     0% {
       filter: brightness(0);

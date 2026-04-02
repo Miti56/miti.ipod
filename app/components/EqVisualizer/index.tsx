@@ -131,9 +131,15 @@ const EqVisualizer = () => {
     // CSS naturally scales it back up, making the 80px blur incredibly cheap.
     const DOWNSCALE = 0.2;
 
+    // On mobile (≤576px) the Shell covers the entire viewport, so these fixed
+    // canvases are never visible. ScreenBackground handles the in-screen animation.
+    // We track this with a ref updated on every resize so the check in frame() is O(1).
+    const isMobileRef = { current: window.innerWidth <= 576 };
+
     const resize = () => {
-      // Add this line to guarantee to TypeScript that they aren't null
-      if (!wCanvas || !bCanvas) return;
+      isMobileRef.current = window.innerWidth <= 576;
+      // Skip sizing on mobile — invisible canvases don't need GPU memory allocated.
+      if (isMobileRef.current) return;
 
       wCanvas.width  = window.innerWidth;
       wCanvas.height = window.innerHeight;
@@ -159,6 +165,9 @@ const EqVisualizer = () => {
     function frame(now: number) {
       if (!alive) return;
       rafRef.current = requestAnimationFrame(frame);
+
+      // On mobile these canvases are hidden — skip all rendering entirely.
+      if (isMobileRef.current) { lastNow = now; return; }
 
       const dt = Math.min((now - lastNow) / 1000, 0.05);
       lastNow  = now;
