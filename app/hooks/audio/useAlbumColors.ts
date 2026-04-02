@@ -4,15 +4,19 @@ import { useEffect, useRef, useState } from "react";
 export type RGB = [number, number, number];
 
 export interface AlbumPalette {
-  /** 5 colors ordered dark→light: bass layer to treble layer */
+  /** 5 colors ordered dark→light: kept for potential future wave overlay use */
   waves: RGB[];
+  /** 6 vivid mid-tone colors for the ambient fluid blobs */
+  blobs: RGB[];
   /** Very dark tinted colour for the background radial gradient centre */
   bgMid: RGB;
   /** Near-black for the background radial gradient edge */
   bgEdge: RGB;
+  /** Very light tinted colour — the solid base behind the blobs */
+  bgBase: RGB;
 }
 
-// ── Fallback (warm amber — used when no artwork or extraction fails) ───────────
+// ── Fallback — soft Apple-blue/violet palette (used when no artwork) ──────────
 export const DEFAULT_PALETTE: AlbumPalette = {
   waves: [
     [200, 55, 10],
@@ -21,8 +25,17 @@ export const DEFAULT_PALETTE: AlbumPalette = {
     [255, 224, 138],
     [255, 248, 214],
   ],
+  blobs: [
+    [120, 155, 230],  // periwinkle blue
+    [170, 120, 215],  // violet-purple
+    [215, 130, 185],  // rose
+    [130, 195, 215],  // sky blue
+    [180, 165, 225],  // lavender
+    [215, 155, 155],  // soft coral
+  ],
   bgMid:  [55, 16, 4],
   bgEdge: [4, 2, 1],
+  bgBase: [248, 245, 252],
 };
 
 // ── HSL ↔ RGB helpers ─────────────────────────────────────────────────────────
@@ -68,18 +81,31 @@ function hslToRgb(h: number, s: number, l: number): RGB {
 
 // ── Palette generation from a single dominant hue ─────────────────────────────
 function buildPalette(hue: number, sat: number): AlbumPalette {
-  // Moderate boost — respect the source material's colour temperature
-  const s = Math.max(45, Math.min(100, sat * 1.10));
+  const s  = Math.max(45, Math.min(100, sat * 1.10));
+  // Blob saturation: vivid enough to read on a near-white background
+  const vs = Math.max(55, Math.min(88, sat * 1.08));
+  const L  = 62; // base lightness for blobs — visible on light bg, not garish
   return {
     waves: [
-      hslToRgb(hue, s,           28),  // darkest  – sub-bass
-      hslToRgb(hue, s,           42),  // rich     – bass
-      hslToRgb(hue, s * 0.90,   56),  // vivid    – low-mid
-      hslToRgb(hue, s * 0.58,   70),  // lighter  – mid
-      hslToRgb(hue, s * 0.26,   84),  // pale     – treble
+      hslToRgb(hue, s,           28),
+      hslToRgb(hue, s,           42),
+      hslToRgb(hue, s * 0.90,   56),
+      hslToRgb(hue, s * 0.58,   70),
+      hslToRgb(hue, s * 0.26,   84),
+    ],
+    // Six blob colors: dominant hue + harmonious offsets within ±60°
+    blobs: [
+      hslToRgb(hue,       vs,          L),
+      hslToRgb(hue + 28,  vs * 0.90,  L + 6),
+      hslToRgb(hue - 28,  vs * 0.85,  L - 4),
+      hslToRgb(hue + 55,  vs * 0.78,  L + 8),
+      hslToRgb(hue - 55,  vs * 0.82,  L + 4),
+      hslToRgb(hue + 14,  vs * 0.70,  L + 12),
     ],
     bgMid:  hslToRgb(hue, Math.min(70, s * 0.40), 7),
     bgEdge: hslToRgb(hue, Math.min(35, s * 0.18), 2),
+    // Near-white base, very lightly tinted with the dominant hue
+    bgBase: hslToRgb(hue, Math.min(22, s * 0.18), 97),
   };
 }
 
