@@ -3,3 +3,4 @@
 
 -Menu Button does not vibrate
 -improve performance on mobile
+-White cornets bottom of the screen
