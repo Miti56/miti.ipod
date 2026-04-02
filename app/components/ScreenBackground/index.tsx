@@ -8,11 +8,6 @@ import { Screen } from "@/utils/constants";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ScreenBackground — lives at z-index 0 inside ScreenContainer (isolation:isolate).
-//
-// Three layers:
-//   BlobCanvas  — ambient blob animation, fills the screen area.
-//   WaveCanvas  — audio-reactive ocean waves, same dimensions.
-//   WhiteOverlay— opaque white div sitting above both canvases.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BLOBS = [
@@ -32,6 +27,10 @@ const LAYERS = [
 ];
 const W0 = 0.55, W1 = 0.30, W2 = 0.15;
 const MAX_N = 256;
+
+// Math constants hoisted for CPU savings
+const PI2 = Math.PI * 2;
+const PI58 = Math.PI * 5.8;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 interface Spr { v: number; x: number }
@@ -112,10 +111,10 @@ const ScreenBackground = () => {
   const rafRef        = useRef(0);
 
   const blobPhasesRef = useRef<number[][]>(
-    BLOBS.map(() => Array.from({ length: 4 }, () => Math.random() * Math.PI * 2))
+    BLOBS.map(() => Array.from({ length: 4 }, () => Math.random() * PI2))
   );
   const wavePhasesRef = useRef<number[][]>(
-    LAYERS.map(() => [Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28])
+    LAYERS.map(() => [Math.random() * PI2, Math.random() * PI2, Math.random() * PI2])
   );
 
   const curBlobs = useRef<RGB[]>(DEFAULT_PALETTE.blobs.slice(0, 5).map(c => [...c] as RGB));
@@ -157,8 +156,7 @@ const ScreenBackground = () => {
 
     let isMobile = window.innerWidth <= 576;
 
-    // DOWN-SCALE BLOBS: Renders 80% fewer pixels to GPU
-    const DOWNSCALE = 0.2;
+    const DOWNSCALE_BLOBS = 0.2;
 
     const resize = () => {
       isMobile = window.innerWidth <= 576;
@@ -168,15 +166,16 @@ const ScreenBackground = () => {
       const W = container.clientWidth;
       const H = container.clientHeight;
 
-      // Blobs run at 20% resolution (CSS stretches it)
-      bCanvas.width  = W * DOWNSCALE;
-      bCanvas.height = H * DOWNSCALE;
-      bCanvas.style.width = `${W}px`;
-      bCanvas.style.height = `${H}px`;
+      // OPTIMIZATION: Halve internal wave rendering resolution on mobile
+      const WAVE_SCALE = isMobile ? 0.5 : 1.0;
 
-      // Waves stay crisp at 100% resolution
-      wCanvas.width  = W;
-      wCanvas.height = H;
+      // Blobs run at 20% resolution
+      bCanvas.width  = W * DOWNSCALE_BLOBS;
+      bCanvas.height = H * DOWNSCALE_BLOBS;
+
+      // Waves scale down internally on mobile, CSS stretches them to fit
+      wCanvas.width  = W * WAVE_SCALE;
+      wCanvas.height = H * WAVE_SCALE;
     };
 
     resize();
@@ -197,7 +196,7 @@ const ScreenBackground = () => {
       const dt = Math.min((now - lastNow) / 1000, 0.1);
       lastNow = now;
 
-      // Extract the logical display width/height
+      // Extract the logical display width/height for calculations
       const lW = wCanvas!.width;
       const lH = wCanvas!.height;
       if (lW === 0 || lH === 0) return;
@@ -215,36 +214,41 @@ const ScreenBackground = () => {
 
       // ── Blob canvas (Downscaled) ────────────────────────────────────────────
       bCtx!.save();
-      bCtx!.scale(DOWNSCALE, DOWNSCALE);
+      bCtx!.scale(DOWNSCALE_BLOBS, DOWNSCALE_BLOBS);
       bCtx!.fillStyle = `rgb(${cs(curBg.current)})`;
-      bCtx!.fillRect(0, 0, lW, lH);
+      bCtx!.fillRect(0, 0, bCanvas!.width / DOWNSCALE_BLOBS, bCanvas!.height / DOWNSCALE_BLOBS);
 
-      const blobCount = isMobile ? 3 : BLOBS.length;
-      BLOBS.slice(0, blobCount).forEach((blob, bi) => {
+      BLOBS.forEach((blob, bi) => {
         const ph = blobPhasesRef.current[bi];
         ph[0] += dt * blob.sx[0];
         ph[1] += dt * blob.sx[1];
         ph[2] += dt * blob.sy[0];
         ph[3] += dt * blob.sy[1];
 
-        const bx = blob.cx * lW + blob.rx[0] * lW * Math.sin(ph[0]) + blob.rx[1] * lW * Math.sin(ph[1]);
-        const by = blob.cy * lH + blob.ry[0] * lH * Math.sin(ph[2]) + blob.ry[1] * lH * Math.sin(ph[3]);
-        const r  = blob.radius * Math.min(lW, lH);
-        const rgb = cb[blob.pi];
+        // Draw math relative to the container size, not the wave canvas size
+        const wBase = bCanvas!.width / DOWNSCALE_BLOBS;
+        const hBase = bCanvas!.height / DOWNSCALE_BLOBS;
+
+        const bx = blob.cx * wBase + blob.rx[0] * wBase * Math.sin(ph[0]) + blob.rx[1] * wBase * Math.sin(ph[1]);
+        const by = blob.cy * hBase + blob.ry[0] * hBase * Math.sin(ph[2]) + blob.ry[1] * hBase * Math.sin(ph[3]);
+        const r  = blob.radius * Math.min(wBase, hBase);
+
+        // Cache RGB string calculation
+        const rgbStr = cs(cb[blob.pi]);
 
         const grad = bCtx!.createRadialGradient(bx, by, 0, bx, by, r);
-        grad.addColorStop(0,    `rgba(${cs(rgb)}, ${blob.alpha.toFixed(3)})`);
-        grad.addColorStop(0.45, `rgba(${cs(rgb)}, ${(blob.alpha * 0.38).toFixed(3)})`);
-        grad.addColorStop(1,    `rgba(${cs(rgb)}, 0)`);
+        grad.addColorStop(0,    `rgba(${rgbStr}, ${blob.alpha.toFixed(3)})`);
+        grad.addColorStop(0.45, `rgba(${rgbStr}, ${(blob.alpha * 0.38).toFixed(3)})`);
+        grad.addColorStop(1,    `rgba(${rgbStr}, 0)`);
 
         bCtx!.fillStyle = grad;
         bCtx!.beginPath();
-        bCtx!.arc(bx, by, r, 0, Math.PI * 2);
+        bCtx!.arc(bx, by, r, 0, PI2);
         bCtx!.fill();
       });
       bCtx!.restore();
 
-      // ── Wave canvas (Full res, optimized drawing) ───────────────────────────
+      // ── Wave canvas (Optimized Fill Rate) ───────────────────────────
       const targetOp = isActive ? 1.0 : 0.22;
       opacRef.current += (targetOp - opacRef.current) * 0.022;
       const op = opacRef.current;
@@ -292,10 +296,10 @@ const ScreenBackground = () => {
         const breathe   = 1 + 0.030 * Math.sin(now * 0.00065);
         const beatBoost = 1 + beatRef.current * 0.42;
 
-        // FIXED: Restore all layers on mobile so the bass visualization remains
         LAYERS.forEach((layer, li) => {
           const ph  = wavePhasesRef.current[li];
-          const rgb = cw[layer.pi];
+          // String caching to save string concatenation ops
+          const rgbStr = cs(cw[layer.pi]);
 
           const STEP = layer.blur > 8 ? 10 : layer.blur > 0 ? 5 : 3;
           const N    = Math.min(Math.ceil(lW / STEP) + 2, MAX_N);
@@ -310,11 +314,11 @@ const ScreenBackground = () => {
             const x  = i * STEP - STEP;
             const nx = x / lW;
 
-            let y = W0 * Math.sin(layer.freqs[0] * Math.PI * 2 * nx + ph[0])
-              + W1 * Math.sin(layer.freqs[1] * Math.PI * 2 * nx + ph[1])
-              + W2 * Math.sin(layer.freqs[2] * Math.PI * 2 * nx + ph[2]);
+            let y = W0 * Math.sin(layer.freqs[0] * PI2 * nx + ph[0])
+              + W1 * Math.sin(layer.freqs[1] * PI2 * nx + ph[1])
+              + W2 * Math.sin(layer.freqs[2] * PI2 * nx + ph[2]);
             y *= totalAmp;
-            y += midAmp * Math.sin(layer.freqs[2] * Math.PI * 5.8 * nx + ph[2] * 1.7);
+            y += midAmp * Math.sin(layer.freqs[2] * PI58 * nx + ph[2] * 1.7);
 
             pxs[i] = x;
             pys[i] = centerY + y;
@@ -330,10 +334,10 @@ const ScreenBackground = () => {
           }
 
           const fillGrad = wCtx!.createLinearGradient(0, minY - 10, 0, minY + lH * 0.62);
-          fillGrad.addColorStop(0,    `rgba(${cs(rgb)}, ${layer.alpha * op})`);
-          fillGrad.addColorStop(0.28, `rgba(${cs(rgb)}, ${layer.alpha * op * 0.42})`);
-          fillGrad.addColorStop(0.65, `rgba(${cs(rgb)}, ${layer.alpha * op * 0.10})`);
-          fillGrad.addColorStop(1,    `rgba(${cs(rgb)}, 0)`);
+          fillGrad.addColorStop(0,    `rgba(${rgbStr}, ${layer.alpha * op})`);
+          fillGrad.addColorStop(0.28, `rgba(${rgbStr}, ${layer.alpha * op * 0.42})`);
+          fillGrad.addColorStop(0.65, `rgba(${rgbStr}, ${layer.alpha * op * 0.10})`);
+          fillGrad.addColorStop(1,    `rgba(${rgbStr}, 0)`);
 
           wCtx!.beginPath();
           traceCurve(wCtx!, pxs, pys, N);
@@ -344,10 +348,9 @@ const ScreenBackground = () => {
           wCtx!.fill();
 
           if (layer.blur === 0) {
-            // FIXED: Do not calculate or draw shadows on mobile
             if (!isMobile) {
               wCtx!.shadowBlur  = 24 + bassVal * 22;
-              wCtx!.shadowColor = `rgba(${cs(rgb)}, 0.65)`;
+              wCtx!.shadowColor = `rgba(${rgbStr}, 0.65)`;
             } else {
               wCtx!.shadowBlur = 0;
               wCtx!.shadowColor = "transparent";
@@ -355,7 +358,7 @@ const ScreenBackground = () => {
 
             wCtx!.beginPath();
             traceCurve(wCtx!, pxs, pys, N);
-            wCtx!.strokeStyle = `rgba(${cs(rgb)}, ${layer.alpha * op * 0.85})`;
+            wCtx!.strokeStyle = `rgba(${rgbStr}, ${layer.alpha * op * 0.85})`;
             wCtx!.lineWidth   = 2.0;
             wCtx!.stroke();
           }

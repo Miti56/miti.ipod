@@ -4,19 +4,11 @@ import { useAudioPlayer } from "@/hooks";
 import { useAlbumColors, DEFAULT_PALETTE, RGB } from "@/hooks/audio/useAlbumColors";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Two-layer visual system:
-//
-// BACKGROUND — Ambient lava-lamp blobs (full viewport, heavy CSS blur).
-//   Always alive. Colors lerp toward album art. No audio reactivity.
-//
-// FOREGROUND — iOS-style layered ocean waves (full viewport, transparent bg).
-//   From commit 966a5d4a. Bass/mid spring-driven. Blurred back layers give
-//   atmospheric depth. Front layers have glow. Colors from album art.
+// Two-layer visual system
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PADDING = 140;
 
-// ── Blob config ────────────────────────────────────────────────────────────────
 const BLOBS = [
   { cx:0.28, cy:0.38, rx:[0.28,0.10], ry:[0.22,0.12], sx:[0.065,0.127], sy:[0.083,0.107], radius:0.60, alpha:0.75, pi:0 },
   { cx:0.74, cy:0.60, rx:[0.24,0.09], ry:[0.28,0.11], sx:[0.078,0.113], sy:[0.071,0.139], radius:0.54, alpha:0.70, pi:1 },
@@ -26,7 +18,6 @@ const BLOBS = [
   { cx:0.50, cy:0.78, rx:[0.26,0.08], ry:[0.24,0.12], sx:[0.103,0.081], sy:[0.091,0.118], radius:0.48, alpha:0.60, pi:5 },
 ] as const;
 
-// ── Wave layer config (from 966a5d4a) ─────────────────────────────────────────
 const LAYERS = [
   { blur: 20, amp: 0.240, speeds: [0.11, 0.07, 0.04], freqs: [1.4, 2.3, 0.8],  yFrac: 0.535, alpha: 0.13, pi: 0 },
   { blur: 9,  amp: 0.185, speeds: [0.18, 0.11, 0.06], freqs: [1.9, 3.1, 1.2],  yFrac: 0.515, alpha: 0.21, pi: 1 },
@@ -35,6 +26,10 @@ const LAYERS = [
   { blur: 0,  amp: 0.075, speeds: [0.44, 0.28, 0.17], freqs: [3.4, 5.5, 2.6],  yFrac: 0.465, alpha: 0.65, pi: 4 },
 ];
 const W0 = 0.55, W1 = 0.30, W2 = 0.15;
+
+// Math constants hoisted for performance
+const PI2 = Math.PI * 2;
+const PI58 = Math.PI * 5.8;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 interface Spr { v: number; x: number }
@@ -76,11 +71,11 @@ const EqVisualizer = () => {
   const rafRef        = useRef(0);
 
   const blobPhasesRef = useRef<number[][]>(
-    BLOBS.map(() => Array.from({ length: 4 }, () => Math.random() * Math.PI * 2))
+    BLOBS.map(() => Array.from({ length: 4 }, () => Math.random() * PI2))
   );
 
   const wavePhasesRef = useRef<number[][]>(
-    LAYERS.map(() => [Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28])
+    LAYERS.map(() => [Math.random() * PI2, Math.random() * PI2, Math.random() * PI2])
   );
 
   const curBlobs = useRef<RGB[]>(DEFAULT_PALETTE.blobs.map(c => [...c] as RGB));
@@ -122,22 +117,25 @@ const EqVisualizer = () => {
     const wCtx = wCanvas.getContext("2d");
     if (!bCtx || !wCtx) return;
 
-    const DOWNSCALE = 0.2;
-    // Track mobile view cleanly
+    const DOWNSCALE_BLOBS = 0.2;
     let isMobile = window.innerWidth <= 768;
 
     const resize = () => {
       if (!wCanvas || !bCanvas) return;
       isMobile = window.innerWidth <= 768;
 
-      wCanvas.width  = window.innerWidth;
-      wCanvas.height = window.innerHeight;
+      // OPTIMIZATION: Halve internal wave rendering resolution on mobile
+      // CSS keeps it full screen. Saves 75% fill rate.
+      const WAVE_SCALE = isMobile ? 0.5 : 1.0;
+
+      wCanvas.width  = window.innerWidth * WAVE_SCALE;
+      wCanvas.height = window.innerHeight * WAVE_SCALE;
       wCanvas.style.width  = `${window.innerWidth}px`;
       wCanvas.style.height = `${window.innerHeight}px`;
 
       const PAD2 = PADDING * 2;
-      bCanvas.width  = (window.innerWidth + PAD2) * DOWNSCALE;
-      bCanvas.height = (window.innerHeight + PAD2) * DOWNSCALE;
+      bCanvas.width  = (window.innerWidth + PAD2) * DOWNSCALE_BLOBS;
+      bCanvas.height = (window.innerHeight + PAD2) * DOWNSCALE_BLOBS;
       bCanvas.style.width  = `${window.innerWidth + PAD2}px`;
       bCanvas.style.height = `${window.innerHeight + PAD2}px`;
     };
@@ -155,7 +153,8 @@ const EqVisualizer = () => {
       if (!alive) return;
       rafRef.current = requestAnimationFrame(frame);
 
-      const dt = Math.min((now - lastNow) / 1000, 0.05);
+      // OPTIMIZATION: Raised dt clamp to 0.1. Keeps math locked to rhythm even if frames drop.
+      const dt = Math.min((now - lastNow) / 1000, 0.1);
       lastNow  = now;
 
       const isActive = activeRef.current;
@@ -176,7 +175,7 @@ const EqVisualizer = () => {
       const lVH = window.innerHeight;
 
       bCtx!.save();
-      bCtx!.scale(DOWNSCALE, DOWNSCALE);
+      bCtx!.scale(DOWNSCALE_BLOBS, DOWNSCALE_BLOBS);
       bCtx!.fillStyle = `rgb(${cs(curBg.current)})`;
       bCtx!.fillRect(0, 0, lCW, lCH);
 
@@ -199,15 +198,14 @@ const EqVisualizer = () => {
 
         bCtx!.fillStyle = grad;
         bCtx!.beginPath();
-        bCtx!.arc(bx, by, r, 0, Math.PI * 2);
+        bCtx!.arc(bx, by, r, 0, PI2);
         bCtx!.fill();
       });
       bCtx!.restore();
 
-      // @ts-ignore
-      const wCW = wCanvas.width;
-      // @ts-ignore
-      const wCH = wCanvas.height;
+      // Ensure we use the actual internal canvas resolution for math
+      const wCW = wCanvas!.width;
+      const wCH = wCanvas!.height;
 
       const targetOp = isActive ? 1.0 : 0.22;
       opacRef.current += (targetOp - opacRef.current) * 0.022;
@@ -217,7 +215,6 @@ const EqVisualizer = () => {
 
       if (op >= 0.01) {
         LAYERS.forEach((layer, li) => {
-          // ALL LAYERS RETAINED - NO CULLING
           wavePhasesRef.current[li][0] += dt * layer.speeds[0];
           wavePhasesRef.current[li][1] += dt * layer.speeds[1];
           wavePhasesRef.current[li][2] += dt * layer.speeds[2];
@@ -274,11 +271,11 @@ const EqVisualizer = () => {
             const x  = i * STEP - STEP;
             const nx = x / wCW;
 
-            let y = W0 * Math.sin(layer.freqs[0] * Math.PI * 2 * nx + ph[0])
-              + W1 * Math.sin(layer.freqs[1] * Math.PI * 2 * nx + ph[1])
-              + W2 * Math.sin(layer.freqs[2] * Math.PI * 2 * nx + ph[2]);
+            let y = W0 * Math.sin(layer.freqs[0] * PI2 * nx + ph[0])
+              + W1 * Math.sin(layer.freqs[1] * PI2 * nx + ph[1])
+              + W2 * Math.sin(layer.freqs[2] * PI2 * nx + ph[2]);
             y *= totalAmp;
-            y += midAmp * Math.sin(layer.freqs[2] * Math.PI * 5.8 * nx + ph[2] * 1.7);
+            y += midAmp * Math.sin(layer.freqs[2] * PI58 * nx + ph[2] * 1.7);
 
             pxs[i] = x;
             pys[i] = centerY + y;
@@ -287,7 +284,7 @@ const EqVisualizer = () => {
 
           wCtx!.save();
 
-          // EXPLICIT MOBILE CHECK: Disables expensive blur filter
+          // Disable GPU heavy filters on mobile
           if (layer.blur > 0) {
             wCtx!.filter = isMobile ? "none" : `blur(${layer.blur}px)`;
           } else {
@@ -309,7 +306,7 @@ const EqVisualizer = () => {
           wCtx!.fill();
 
           if (layer.blur === 0) {
-            // EXPLICIT MOBILE CHECK: Disables expensive drop shadows
+            // Disable GPU heavy shadows on mobile
             if (!isMobile) {
               wCtx!.shadowBlur  = 22 + bassVal * 18;
               wCtx!.shadowColor = `rgba(${cs(rgb)}, 0.55)`;
