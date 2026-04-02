@@ -4,9 +4,12 @@ import { ViewInstance } from "@/providers/ViewContextProvider";
 import { VIEW_REGISTRY, ViewId } from "@/components/views/registry";
 import styled from "styled-components";
 import { ComponentType } from "react";
+import { Screen } from "@/utils/constants";
+import { useScreenGlass } from "@/providers/ScreenGlassProvider";
 
 interface ContainerProps {
   index: number;
+  $glass: boolean;
 }
 
 /** Responsible for putting the view at the proper z-index. */
@@ -18,6 +21,11 @@ export const Container = styled(motion.div)<ContainerProps>`
   left: 0;
   right: 0;
   background: white;
+
+  ${Screen.SM.MediaQuery} {
+    transition: background 1.1s ease;
+    background: ${({ $glass }) => ($glass ? "rgba(255,255,255,0)" : "white")};
+  }
 `;
 
 interface ContentTransitionContainerProps {
@@ -41,6 +49,7 @@ interface Props {
 const View = ({ viewStack, index, isHidden }: Props) => {
   const viewInstance = viewStack[index];
   const firstInStack = index === 0;
+  const isGlass = useScreenGlass();
 
   // Only render screen views
   if (viewInstance.type !== "screen") {
@@ -71,6 +80,7 @@ const View = ({ viewStack, index, isHidden }: Props) => {
     <Container
       data-view-id={viewInstance.id}
       index={index}
+      $glass={isGlass}
       {...(firstInStack ? noAnimation : slideRightAnimation)}
     >
       <ContentTransitionContainer $isHidden={isHidden}>

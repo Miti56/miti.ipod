@@ -3,7 +3,7 @@ import { Screen, Unit } from "@/utils/constants";
 import { DeviceThemeName, getTheme } from "@/utils/themes";
 import { SCREEN_TEXTURE } from "@/utils/constants/screenTexture";
 
-export const Shell = styled.div<{ $deviceTheme: DeviceThemeName }>`
+export const Shell = styled.div<{ $deviceTheme: DeviceThemeName; $glass?: boolean }>`
   position: relative;
   display: flex;
   flex-direction: column;
@@ -28,6 +28,14 @@ export const Shell = styled.div<{ $deviceTheme: DeviceThemeName }>`
     max-height: unset;
     border-radius: 0;
     -webkit-box-reflect: unset;
+    transition: background 1.1s ease, box-shadow 1.1s ease;
+
+    ${({ $glass }) =>
+      $glass &&
+      css`
+        background: transparent;
+        box-shadow: none;
+      `}
   }
 
   @keyframes descend {
@@ -50,7 +58,7 @@ export const ScreenContainer = styled.div`
   border: 4px solid black;
   border-radius: ${Unit.XS};
   overflow: hidden;
-  background: white;
+  isolation: isolate;
   animation: fadeFromBlack 0.5s;
 
   @keyframes fadeFromBlack {

@@ -3,9 +3,12 @@ import View from "@/components/ViewManager/components/View";
 import { AnimatePresence } from "framer-motion";
 import { ScreenViewInstance } from "@/providers/ViewContextProvider";
 import styled from "styled-components";
+import { Screen } from "@/utils/constants";
+import { useScreenGlass } from "@/providers/ScreenGlassProvider";
 
 interface ContainerProps {
   $isHidden: boolean;
+  $glass: boolean;
 }
 
 const Container = styled.div<ContainerProps>`
@@ -18,6 +21,11 @@ const Container = styled.div<ContainerProps>`
   background: white;
   transition: all 0.35s;
   transform: ${(props) => props.$isHidden && "translateX(100%)"};
+
+  ${Screen.SM.MediaQuery} {
+    transition: transform 0.35s, background 1.1s ease;
+    background: ${({ $glass }) => ($glass ? "rgba(255,255,255,0)" : "white")};
+  }
 `;
 
 const ContentContainer = styled.div`
@@ -30,9 +38,10 @@ interface Props {
 
 const FullScreenViewManager = ({ viewStack }: Props) => {
   const isHidden = viewStack.length === 0;
+  const isGlass = useScreenGlass();
 
   return (
-    <Container data-stack-type="fullscreen" $isHidden={isHidden}>
+    <Container data-stack-type="fullscreen" $isHidden={isHidden} $glass={isGlass}>
       <Header />
       <ContentContainer>
         <AnimatePresence>

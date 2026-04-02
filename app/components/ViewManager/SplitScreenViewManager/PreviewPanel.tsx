@@ -3,9 +3,11 @@ import { AnimatePresence } from "framer-motion";
 import { useViewContext } from "@/hooks";
 import { Screen } from "@/utils/constants";
 import styled, { css } from "styled-components";
+import { useScreenGlass } from "@/providers/ScreenGlassProvider";
 
 interface ContainerProps {
   $isHidden: boolean;
+  $glass: boolean;
 }
 
 const Container = styled.div<ContainerProps>`
@@ -26,6 +28,11 @@ const Container = styled.div<ContainerProps>`
   ${Screen.XS.MediaQuery} {
     display: none;
   }
+
+  ${Screen.SM.MediaQuery} {
+    transition: transform 0.35s, opacity 0.35s, background 1.1s ease;
+    background: ${({ $glass }) => ($glass ? "rgba(255,255,255,0)" : "white")};
+  }
 `;
 
 interface Props {
@@ -36,9 +43,10 @@ const PreviewPanel = ({ $isHidden: isHidden }: Props) => {
   const { preview } = useViewContext();
   const PreviewComponent = Previews[preview];
   const isAnimated = ANIMATED_PREVIEWS.has(preview);
+  const isGlass = useScreenGlass();
 
   return (
-    <Container $isHidden={isHidden}>
+    <Container $isHidden={isHidden} $glass={isGlass}>
       <AnimatePresence>
         {/* Animated previews (Music, Photos) slide in; others simply appear. */}
         {isAnimated && <PreviewComponent />}

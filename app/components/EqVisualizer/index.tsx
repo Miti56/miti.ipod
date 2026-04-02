@@ -103,13 +103,18 @@ const EqVisualizer = () => {
   const tgtWaves = useRef(curWaves.current);
 
   // ── Audio state ────────────────────────────────────────────────────────────
-  const bassS     = useRef<Spr>({ v: 0, x: 0 });
-  const midS      = useRef<Spr>({ v: 0, x: 0 });
-  const freqRef   = useRef(new Uint8Array(1024));
-  const opacRef   = useRef(0.0);
-  const activeRef = useRef(false);
-  const beatRef   = useRef(0);
-  const prevBassR = useRef(0);
+  const bassS        = useRef<Spr>({ v: 0, x: 0 });
+  const midS         = useRef<Spr>({ v: 0, x: 0 });
+  const freqRef      = useRef(new Uint8Array(1024));
+  const opacRef      = useRef(0.0);
+  const activeRef    = useRef(false);
+  const beatRef      = useRef(0);
+  const prevBassR    = useRef(0);
+  // Slow-moving energy followers for AC-coupling.
+  // The spring target becomes the deviation *above* the running average,
+  // so beats are always visible even against a constant loud bassline.
+  const bassFollower = useRef(0.05);
+  const midFollower  = useRef(0.05);
 
   // Keep analyserNode and playback state in refs (avoid RAF restarts)
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -267,16 +272,28 @@ const EqVisualizer = () => {
       const bassRaw = Math.min(1, avg(1, 8)  * 2.8);
       const midRaw  = Math.min(1, avg(8, 60) * 2.2);
 
-      const bassVal = spr(bassS.current, bassRaw, 0.10, 0.70);
-      const midVal  = spr(midS.current,  midRaw,  0.10, 0.75);
+      // ── AC-coupled signal ─────────────────────────────────────────────────
+      // Slow followers track the running energy floor (~1 s time constant).
+      // Spring targets are the deviation *above* that floor, amplified so
+      // beats punch through even when the baseline is already loud.
+      const FOLLOW = 0.014; // ~1 s at 60 fps
+      bassFollower.current += (bassRaw - bassFollower.current) * FOLLOW;
+      midFollower.current  += (midRaw  - midFollower.current)  * FOLLOW;
 
-      // Beat transient
-      if (bassRaw - prevBassR.current > 0.12) beatRef.current = 1.0;
-      beatRef.current   *= 0.90;
+      const bassTarget = Math.min(1, Math.max(0, bassRaw - bassFollower.current * 0.78) * 4.0);
+      const midTarget  = Math.min(1, Math.max(0, midRaw  - midFollower.current  * 0.78) * 4.0);
+
+      const bassVal = spr(bassS.current, bassTarget, 0.18, 0.62);
+      const midVal  = spr(midS.current,  midTarget,  0.15, 0.65);
+
+      // Adaptive beat detection — threshold scales with recent bass floor
+      const beatThresh = Math.max(0.07, 0.05 + bassFollower.current * 0.10);
+      if (bassRaw - prevBassR.current > beatThresh) beatRef.current = 1.0;
+      beatRef.current   *= 0.88;
       prevBassR.current  = bassRaw;
 
       const breathe   = 1 + 0.030 * Math.sin(now * 0.00065);
-      const beatBoost = 1 + beatRef.current * 0.38;
+      const beatBoost = 1 + beatRef.current * 0.42;
 
       // ── Lerp wave colours ─────────────────────────────────────────────────
       const cw = curWaves.current;
