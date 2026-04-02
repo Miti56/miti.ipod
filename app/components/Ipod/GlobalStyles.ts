@@ -6,7 +6,7 @@ export const GlobalStyles = createGlobalStyle`
     height: 100dvh;
     display: grid;
     margin: 0;
-    background: #080402;
+    background: #F8F5FC;
     font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen,
       Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
     color: black;
