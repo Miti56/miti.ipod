@@ -6,6 +6,7 @@ export const GlobalStyles = createGlobalStyle`
     height: 100dvh;
     display: grid;
     margin: 0;
+    background: #080402;
     font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen,
       Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
     color: black;
@@ -29,9 +30,6 @@ export const GlobalStyles = createGlobalStyle`
   @media (prefers-color-scheme: dark) {
     html {
       color-scheme: dark;
-    }
-    body {
-      background: black;
     }
   }
 `;

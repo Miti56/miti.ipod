@@ -44,6 +44,7 @@ interface AudioPlayerState {
   updateNowPlayingItem: () => Promise<void>;
   updatePlaybackInfo: () => Promise<void>;
   reset: () => void;
+  analyserNode: AnalyserNode | null;
 }
 
 export const AudioPlayerContext = createContext<AudioPlayerState>(
@@ -94,6 +95,8 @@ export const AudioPlayerProvider = ({ children }: Props) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const queueRef = useRef<MediaApi.Song[]>([]);
   const currentIndexRef = useRef<number>(0);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
 
   const [volume, setVolumeState] = useState(0.5);
   const [nowPlayingItem, setNowPlayingItem] = useState<MediaApi.MediaItem>();
@@ -114,6 +117,24 @@ export const AudioPlayerProvider = ({ children }: Props) => {
   const getOrCreateAudio = useCallback((): HTMLAudioElement => {
     if (!audioRef.current) {
       audioRef.current = new Audio();
+      audioRef.current.crossOrigin = "anonymous";
+      if (typeof window !== "undefined") {
+        try {
+          const AudioCtx =
+            window.AudioContext || (window as any).webkitAudioContext;
+          const actx = new AudioCtx({ latencyHint: "interactive" });
+          const source = actx.createMediaElementSource(audioRef.current);
+          const analyser = actx.createAnalyser();
+          analyser.fftSize = 2048;
+          analyser.smoothingTimeConstant = 0.82;
+          source.connect(analyser);
+          analyser.connect(actx.destination);
+          audioCtxRef.current = actx;
+          setAnalyserNode(analyser);
+        } catch {
+          // Web Audio not supported
+        }
+      }
     }
     return audioRef.current;
   }, []);
@@ -313,6 +334,7 @@ export const AudioPlayerProvider = ({ children }: Props) => {
     };
 
     const handlePlay = () => {
+      audioCtxRef.current?.resume();
       setPlaybackInfo((prev) => ({
         ...prev,
         isPlaying: true,
@@ -420,6 +442,7 @@ export const AudioPlayerProvider = ({ children }: Props) => {
         skipNext,
         skipPrevious,
         reset,
+        analyserNode,
       }}
     >
       {children}

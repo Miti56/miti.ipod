@@ -18,6 +18,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ViewContextProvider from "@/providers/ViewContextProvider";
 import { GlobalStyles } from "@/components/Ipod/GlobalStyles";
+import EqVisualizer from "@/components/EqVisualizer";
 
 const Ipod = () => {
   const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const Ipod = () => {
       <SettingsProvider>
         <ViewContextProvider>
           <AudioPlayerProvider>
+            <EqVisualizer />
             <SettingsContext.Consumer>
               {([{ deviceTheme }]) => (
                 <Shell $deviceTheme={deviceTheme}>
