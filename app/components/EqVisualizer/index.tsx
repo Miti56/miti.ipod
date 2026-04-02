@@ -6,11 +6,11 @@ import { useAlbumColors, DEFAULT_PALETTE, RGB } from "@/hooks/audio/useAlbumColo
 // ─────────────────────────────────────────────────────────────────────────────
 // Two-layer visual system:
 //
-// BACKGROUND — Ambient lava-lamp blobs.
+// BACKGROUND — Ambient lava-lamp blobs (full viewport, heavy CSS blur).
 // FOREGROUND — iOS-style layered ocean waves. Bass/mid spring-driven.
 //
-// OPTIMIZED: Fixed Time-Step Physics (guarantees perfect rhythm on 30Hz, 60Hz,
-// and 120Hz screens), Fake Glow (no shadowBlur), and Dynamic Downscaling.
+// MATH: Uses dtScale for perfect rhythm synchronization across 30Hz/60Hz/120Hz
+// displays without the CPU overhead of a fixed-timestep while loop.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PADDING = 140;
@@ -35,21 +35,21 @@ const LAYERS = [
 ];
 const W0 = 0.55, W1 = 0.30, W2 = 0.15;
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Helpers (Upgraded for dtScale) ─────────────────────────────────────────────
 interface Spr { v: number; x: number }
-function spr(s: Spr, target: number, k: number, damp: number): number {
-  s.v += (target - s.x) * k;
-  s.v *= damp;
-  s.x += s.v;
+function spr(s: Spr, target: number, k: number, damp: number, dtScale: number): number {
+  s.v += (target - s.x) * (k * dtScale);
+  s.v *= Math.pow(damp, dtScale); // Exponential decay based on time passed
+  s.x += s.v * dtScale;
   return s.x;
 }
 
-const CL = 0.020; // Lowered slightly so lerping feels consistent in the 60Hz loop
-function lerpRgb(a: RGB, b: RGB): RGB {
+function lerpRgb(a: RGB, b: RGB, dtScale: number): RGB {
+  const cl = 0.020 * dtScale;
   return [
-    a[0] + (b[0] - a[0]) * CL,
-    a[1] + (b[1] - a[1]) * CL,
-    a[2] + (b[2] - a[2]) * CL,
+    a[0] + (b[0] - a[0]) * cl,
+    a[1] + (b[1] - a[1]) * cl,
+    a[2] + (b[2] - a[2]) * cl,
   ];
 }
 const cs = (c: RGB) => `${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])}`;
@@ -90,7 +90,6 @@ const EqVisualizer = () => {
   const curWaves = useRef<RGB[]>(DEFAULT_PALETTE.waves.map(c => [...c] as RGB));
   const tgtWaves = useRef(curWaves.current);
 
-  // Audio physics state
   const bassS     = useRef<Spr>({ v: 0, x: 0 });
   const midS      = useRef<Spr>({ v: 0, x: 0 });
   const bassFloor = useRef(0);
@@ -122,23 +121,21 @@ const EqVisualizer = () => {
     const wCtx = wCanvas.getContext("2d");
     if (!bCtx || !wCtx) return;
 
+    const DOWNSCALE = 0.2;
     const isMobileRef = { current: window.innerWidth <= 576 };
 
     const resize = () => {
-      if (!wCanvas || !bCanvas) return;
-      isMobileRef.current = window.innerWidth <= 576;
+      isMobileRef.current = window.innerWidth <= 768;
 
-      const WAVE_SCALE = isMobileRef.current ? 0.5 : 1.0;
-      const BLOB_SCALE = isMobileRef.current ? 0.05 : 0.2;
-
-      wCanvas.width  = window.innerWidth * WAVE_SCALE;
-      wCanvas.height = window.innerHeight * WAVE_SCALE;
+      // Revert wave canvas to standard 1:1 dimensions
+      wCanvas.width  = window.innerWidth;
+      wCanvas.height = window.innerHeight;
       wCanvas.style.width  = `${window.innerWidth}px`;
       wCanvas.style.height = `${window.innerHeight}px`;
 
       const PAD2 = PADDING * 2;
-      bCanvas.width  = (window.innerWidth + PAD2) * BLOB_SCALE;
-      bCanvas.height = (window.innerHeight + PAD2) * BLOB_SCALE;
+      bCanvas.width  = (window.innerWidth + PAD2) * DOWNSCALE;
+      bCanvas.height = (window.innerHeight + PAD2) * DOWNSCALE;
       bCanvas.style.width  = `${window.innerWidth + PAD2}px`;
       bCanvas.style.height = `${window.innerHeight + PAD2}px`;
     };
@@ -147,8 +144,6 @@ const EqVisualizer = () => {
 
     let alive   = true;
     let lastNow = performance.now();
-    let timeAcc = 0;
-    const FIXED_DT = 1 / 60; // 60Hz physics step (16.66ms)
 
     const MAX_N = 512;
     const pxs   = new Float32Array(MAX_N);
@@ -158,114 +153,47 @@ const EqVisualizer = () => {
       if (!alive) return;
       rafRef.current = requestAnimationFrame(frame);
 
-      // Prevent "death spirals" if tab is backgrounded
-      const frameDt = Math.min((now - lastNow) / 1000, 0.1);
+      // Get delta time (capped at 20fps equivalent so tabs don't explode when sleeping)
+      const dt = Math.min((now - lastNow) / 1000, 0.05);
       lastNow  = now;
-      timeAcc += frameDt;
 
-      const isMobile = isMobileRef.current;
+      // Calculate a multiplier. At 60fps, dtScale is 1.0. At 30fps, dtScale is 2.0.
+      const dtScale = dt * 60;
+
       const isActive = activeRef.current;
-      const analyser = analyserRef.current;
+      const blobTarget = isActive ? tgtBlobs.current : DEFAULT_PALETTE.blobs as RGB[];
+      const bgTarget   = isActive ? tgtBg.current    : DEFAULT_PALETTE.bgBase as RGB;
+      const waveTarget = isActive ? tgtWaves.current : DEFAULT_PALETTE.waves as RGB[];
 
-      // ───────────────────────────────────────────────────────────────────────
-      // 1. FIXED-STEP PHYSICS LOOP
-      // Everything inside here executes at exactly 60Hz regardless of display
-      // frame rate. This locks the springs and beat decay to real time.
-      // ───────────────────────────────────────────────────────────────────────
-      while (timeAcc >= FIXED_DT) {
-        // Color Lerping
-        const blobTarget = isActive ? tgtBlobs.current : DEFAULT_PALETTE.blobs as RGB[];
-        const bgTarget   = isActive ? tgtBg.current    : DEFAULT_PALETTE.bgBase as RGB;
-        const waveTarget = isActive ? tgtWaves.current : DEFAULT_PALETTE.waves as RGB[];
+      const cb = curBlobs.current;
+      for (let i = 0; i < 6; i++) cb[i] = lerpRgb(cb[i], blobTarget[i] ?? blobTarget[blobTarget.length - 1], dtScale);
+      curBg.current = lerpRgb(curBg.current, bgTarget, dtScale);
 
-        const cb = curBlobs.current;
-        for (let i = 0; i < 6; i++) cb[i] = lerpRgb(cb[i], blobTarget[i] ?? blobTarget[blobTarget.length - 1]);
-        curBg.current = lerpRgb(curBg.current, bgTarget);
+      const cw = curWaves.current;
+      for (let i = 0; i < 5; i++) cw[i] = lerpRgb(cw[i], waveTarget[i], dtScale);
 
-        const cw = curWaves.current;
-        for (let i = 0; i < 5; i++) cw[i] = lerpRgb(cw[i], waveTarget[i]);
+      // ── Blob Background ───────────────────────────────────────────────────
+      const lCW = window.innerWidth + PADDING * 2;
+      const lCH = window.innerHeight + PADDING * 2;
+      const lVW = window.innerWidth;
+      const lVH = window.innerHeight;
 
-        // Opacity transition
-        const targetOp = isActive ? 1.0 : 0.22;
-        opacRef.current += (targetOp - opacRef.current) * 0.022;
-
-        // Advance Blob Phases
-        BLOBS.forEach((blob, bi) => {
-          const ph = blobPhasesRef.current[bi];
-          ph[0] += FIXED_DT * blob.sx[0];
-          ph[1] += FIXED_DT * blob.sx[1];
-          ph[2] += FIXED_DT * blob.sy[0];
-          ph[3] += FIXED_DT * blob.sy[1];
-        });
-
-        if (opacRef.current >= 0.01) {
-          // Advance Wave Phases
-          LAYERS.forEach((layer, li) => {
-            wavePhasesRef.current[li][0] += FIXED_DT * layer.speeds[0];
-            wavePhasesRef.current[li][1] += FIXED_DT * layer.speeds[1];
-            wavePhasesRef.current[li][2] += FIXED_DT * layer.speeds[2];
-          });
-
-          // Audio Polling
-          if (analyser && isActive) {
-            analyser.getByteFrequencyData(freqRef.current);
-          } else {
-            for (let i = 0; i < freqRef.current.length; i++) {
-              freqRef.current[i] = Math.max(0, freqRef.current[i] - 4);
-            }
-          }
-
-          const avg = (lo: number, hi: number) => {
-            let s = 0;
-            for (let i = lo; i < hi; i++) s += freqRef.current[i];
-            return s / ((hi - lo) * 255);
-          };
-
-          const rawB = avg(1, 8);
-          const rawM = avg(8, 60);
-
-          // Audio Math
-          bassFloor.current += (rawB - bassFloor.current) * (rawB > bassFloor.current ? 0.005 : 0.02);
-          midFloor.current  += (rawM - midFloor.current)  * (rawM > midFloor.current  ? 0.005 : 0.02);
-
-          const bassRaw = Math.min(1, Math.max(0, rawB - bassFloor.current) * 3.5);
-          const midRaw  = Math.min(1, Math.max(0, rawM - midFloor.current) * 3.0);
-
-          // Spring simulation (now frame-rate independent)
-          spr(bassS.current, bassRaw, 0.15, 0.65);
-          spr(midS.current,  midRaw,  0.15, 0.70);
-
-          // Beat detection decay
-          if (bassRaw - prevBassR.current > 0.15) beatRef.current = 1.0;
-          beatRef.current  *= 0.90;
-          prevBassR.current = bassRaw;
-        }
-
-        timeAcc -= FIXED_DT;
-      }
-
-      // ───────────────────────────────────────────────────────────────────────
-      // 2. RENDER LOOP (Draws to canvas at native refresh rate)
-      // ───────────────────────────────────────────────────────────────────────
-      const bW = bCanvas!.width;
-      const bH = bCanvas!.height;
-      const wW = wCanvas!.width;
-      const wH = wCanvas!.height;
-
-      if (bW === 0 || wW === 0) return;
-
-      // ── Draw Blobs ──
       bCtx!.save();
+      bCtx!.scale(DOWNSCALE, DOWNSCALE);
       bCtx!.fillStyle = `rgb(${cs(curBg.current)})`;
-      bCtx!.fillRect(0, 0, bW, bH);
+      bCtx!.fillRect(0, 0, lCW, lCH);
 
-      const blobCount = isMobile ? 4 : BLOBS.length;
-      BLOBS.slice(0, blobCount).forEach((blob, bi) => {
+      BLOBS.forEach((blob, bi) => {
         const ph = blobPhasesRef.current[bi];
-        const bx  = blob.cx * bW + blob.rx[0] * bW * Math.sin(ph[0]) + blob.rx[1] * bW * Math.sin(ph[1]);
-        const by  = blob.cy * bH + blob.ry[0] * bH * Math.sin(ph[2]) + blob.ry[1] * bH * Math.sin(ph[3]);
-        const r   = blob.radius * Math.min(bW, bH);
-        const rgb = curBlobs.current[blob.pi];
+        ph[0] += dt * blob.sx[0];
+        ph[1] += dt * blob.sx[1];
+        ph[2] += dt * blob.sy[0];
+        ph[3] += dt * blob.sy[1];
+
+        const bx  = PADDING + blob.cx * lVW + blob.rx[0] * lVW * Math.sin(ph[0]) + blob.rx[1] * lVW * Math.sin(ph[1]);
+        const by  = PADDING + blob.cy * lVH + blob.ry[0] * lVH * Math.sin(ph[2]) + blob.ry[1] * lVH * Math.sin(ph[3]);
+        const r   = blob.radius * Math.min(lVW, lVH);
+        const rgb = cb[blob.pi];
 
         const grad = bCtx!.createRadialGradient(bx, by, 0, bx, by, r);
         grad.addColorStop(0,    `rgba(${cs(rgb)}, ${blob.alpha.toFixed(3)})`);
@@ -279,35 +207,80 @@ const EqVisualizer = () => {
       });
       bCtx!.restore();
 
-      // ── Draw Waves ──
+      // ── Wave Foreground ─────────────────────────────────────────────────
+      // @ts-ignore
+      const wCW = wCanvas.width;
+      // @ts-ignore
+      const wCH = wCanvas.height;
+
+      const targetOp = isActive ? 1.0 : 0.22;
+      opacRef.current += (targetOp - opacRef.current) * (0.022 * dtScale);
       const op = opacRef.current;
-      wCtx!.clearRect(0, 0, wW, wH);
+
+      wCtx!.clearRect(0, 0, wCW, wCH);
 
       if (op >= 0.01) {
-        // Breathe oscillation uses absolute time (performance.now), so it's always smooth
+        LAYERS.forEach((layer, li) => {
+          wavePhasesRef.current[li][0] += dt * layer.speeds[0];
+          wavePhasesRef.current[li][1] += dt * layer.speeds[1];
+          wavePhasesRef.current[li][2] += dt * layer.speeds[2];
+        });
+
+        const analyser = analyserRef.current;
+        if (analyser && isActive) {
+          analyser.getByteFrequencyData(freqRef.current);
+        } else {
+          for (let i = 0; i < freqRef.current.length; i++) {
+            freqRef.current[i] = Math.max(0, freqRef.current[i] - 4);
+          }
+        }
+
+        const avg = (lo: number, hi: number) => {
+          let s = 0;
+          for (let i = lo; i < hi; i++) s += freqRef.current[i];
+          return s / ((hi - lo) * 255);
+        };
+
+        const rawB = avg(1, 8);
+        const rawM = avg(8, 60);
+
+        // Floor scales with time
+        bassFloor.current += (rawB - bassFloor.current) * (rawB > bassFloor.current ? 0.005 : 0.02) * dtScale;
+        midFloor.current  += (rawM - midFloor.current)  * (rawM > midFloor.current  ? 0.005 : 0.02) * dtScale;
+
+        const bassRaw = Math.min(1, Math.max(0, rawB - bassFloor.current) * 3.5);
+        const midRaw  = Math.min(1, Math.max(0, rawM - midFloor.current) * 3.0);
+
+        // Pass dtScale to the springs to keep tension accurate at all framerates
+        const bassVal = spr(bassS.current, bassRaw, 0.15, 0.65, dtScale);
+        const midVal  = spr(midS.current,  midRaw,  0.15, 0.70, dtScale);
+
+        if (bassRaw - prevBassR.current > 0.15) beatRef.current = 1.0;
+
+        // Decay exponentially over time, not frames
+        beatRef.current *= Math.pow(0.90, dtScale);
+        prevBassR.current = bassRaw;
+
         const breathe   = 1 + 0.030 * Math.sin(now * 0.00065);
         const beatBoost = 1 + beatRef.current * 0.38;
 
-        // Grab current physical spring positions
-        const bassVal = bassS.current.x;
-        const midVal  = midS.current.x;
-
         LAYERS.forEach((layer, li) => {
           const ph  = wavePhasesRef.current[li];
-          const rgb = curWaves.current[layer.pi];
+          const rgb = cw[layer.pi];
 
-          const STEP = isMobile ? 6 : (layer.blur > 8 ? 14 : layer.blur > 0 ? 7 : 4);
-          const N    = Math.min(Math.ceil(wW / STEP) + 2, MAX_N);
+          // Revert back to original STEP math to fix aliasing/desync
+          const STEP = layer.blur > 8 ? 14 : layer.blur > 0 ? 7 : 4;
+          const N    = Math.min(Math.ceil(wCW / STEP) + 2, MAX_N);
 
           const IDLE_FLOOR = 0.30;
-          const totalAmp = layer.amp * wH * (IDLE_FLOOR + (1 - IDLE_FLOOR) * bassVal) * breathe * beatBoost;
-          const midAmp   = layer.amp * wH * midVal * 0.28;
-          const centerY  = wH * layer.yFrac;
+          const totalAmp = layer.amp * wCH * (IDLE_FLOOR + (1 - IDLE_FLOOR) * bassVal) * breathe * beatBoost;
+          const midAmp   = layer.amp * wCH * midVal * 0.28;
+          const centerY  = wCH * layer.yFrac;
           let minY = Infinity;
 
           for (let i = 0; i < N; i++) {
             const x  = i * STEP - STEP;
-            const nx = x / wW;
+            const nx = x / wCW;
 
             let y = W0 * Math.sin(layer.freqs[0] * Math.PI * 2 * nx + ph[0])
               + W1 * Math.sin(layer.freqs[1] * Math.PI * 2 * nx + ph[1])
@@ -321,9 +294,15 @@ const EqVisualizer = () => {
           }
 
           wCtx!.save();
-          if (!isMobile && layer.blur > 0) wCtx!.filter = `blur(${layer.blur}px)`;
 
-          const fillGrad = wCtx!.createLinearGradient(0, minY - 10, 0, minY + wH * 0.62);
+          // KEEP THIS: Disable Canvas Filter on mobile
+          if (layer.blur > 0 && !isMobileRef.current) {
+            wCtx!.filter = `blur(${layer.blur}px)`;
+          } else {
+            wCtx!.filter = "none";
+          }
+
+          const fillGrad = wCtx!.createLinearGradient(0, minY - 10, 0, minY + wCH * 0.62);
           fillGrad.addColorStop(0,    `rgba(${cs(rgb)}, ${layer.alpha * op})`);
           fillGrad.addColorStop(0.28, `rgba(${cs(rgb)}, ${layer.alpha * op * 0.42})`);
           fillGrad.addColorStop(0.65, `rgba(${cs(rgb)}, ${layer.alpha * op * 0.10})`);
@@ -331,24 +310,25 @@ const EqVisualizer = () => {
 
           wCtx!.beginPath();
           traceCurve(wCtx!, pxs, pys, N);
-          wCtx!.lineTo(pxs[N - 1], wH + 10);
-          wCtx!.lineTo(pxs[0] - STEP, wH + 10);
+          wCtx!.lineTo(pxs[N - 1], wCH + 10);
+          wCtx!.lineTo(pxs[0] - STEP, wCH + 10);
           wCtx!.closePath();
           wCtx!.fillStyle = fillGrad;
           wCtx!.fill();
 
-          // Fake glow implementation
           if (layer.blur === 0) {
-            wCtx!.beginPath();
-            traceCurve(wCtx!, pxs, pys, N);
-            wCtx!.strokeStyle = `rgba(${cs(rgb)}, ${layer.alpha * op * 0.85})`;
-            wCtx!.lineWidth   = 2.0;
-            wCtx!.stroke();
+            // KEEP THIS: Disable expensive shadows on mobile
+            if (!isMobileRef.current) {
+              wCtx!.shadowBlur  = 22 + bassVal * 18;
+              wCtx!.shadowColor = `rgba(${cs(rgb)}, 0.55)`;
+            } else {
+              wCtx!.shadowBlur = 0;
+            }
 
             wCtx!.beginPath();
             traceCurve(wCtx!, pxs, pys, N);
-            wCtx!.strokeStyle = `rgba(${cs(rgb)}, ${layer.alpha * op * 0.25})`;
-            wCtx!.lineWidth   = 6.0 + bassVal * 8;
+            wCtx!.strokeStyle = `rgba(${cs(rgb)}, ${layer.alpha * op * 0.75})`;
+            wCtx!.lineWidth   = 1.8;
             wCtx!.stroke();
           }
 
