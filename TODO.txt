@@ -1,7 +1,3 @@
--Add ipod sound when scrolling or tunring the clickwheel
--Add viabration when turning the clickwheel
--Add a wavy background when playing music
--Add dirt screen layer
 -Add pixel like effect to the screen. (add realism in general)
 -Add stickers/more personal/use over time
 

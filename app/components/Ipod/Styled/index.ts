@@ -51,6 +51,7 @@ export const ScreenContainer = styled.div`
   border-radius: ${Unit.XS};
   overflow: hidden;
   isolation: isolate;
+  filter: url(#ipod-lcd);
   animation: fadeFromBlack 0.5s;
 
   @keyframes fadeFromBlack {
