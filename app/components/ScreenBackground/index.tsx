@@ -198,12 +198,17 @@ const ScreenBackground = () => {
       const H = bCanvas!.height;
       if (W === 0 || H === 0) return;
 
-      // ── Color lerp ──────────────────────────────────────────────────────────
+      // ── Color lerp — toward album palette when playing, default when idle ────
+      const isActive = activeRef.current;
+      const blobTarget = isActive ? tgtBlobs.current : DEFAULT_PALETTE.blobs.slice(0, 5) as RGB[];
+      const bgTarget   = isActive ? tgtBg.current    : DEFAULT_PALETTE.bgBase as RGB;
+      const waveTarget = isActive ? tgtWaves.current : DEFAULT_PALETTE.waves as RGB[];
+
       const cb = curBlobs.current;
-      for (let i = 0; i < 5; i++) cb[i] = lerpRgb(cb[i], tgtBlobs.current[i]);
-      curBg.current = lerpRgb(curBg.current, tgtBg.current);
+      for (let i = 0; i < 5; i++) cb[i] = lerpRgb(cb[i], blobTarget[i]);
+      curBg.current = lerpRgb(curBg.current, bgTarget);
       const cw = curWaves.current;
-      for (let i = 0; i < 5; i++) cw[i] = lerpRgb(cw[i], tgtWaves.current[i]);
+      for (let i = 0; i < 5; i++) cw[i] = lerpRgb(cw[i], waveTarget[i]);
 
       // ── Blob canvas ─────────────────────────────────────────────────────────
       bCtx!.fillStyle = `rgb(${cs(curBg.current)})`;
@@ -233,7 +238,6 @@ const ScreenBackground = () => {
       });
 
       // ── Wave canvas ─────────────────────────────────────────────────────────
-      const isActive = activeRef.current;
       const targetOp = isActive ? 1.0 : 0.22;
       opacRef.current += (targetOp - opacRef.current) * 0.022;
       const op = opacRef.current;

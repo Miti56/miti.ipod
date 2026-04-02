@@ -163,15 +163,18 @@ const EqVisualizer = () => {
       const dt = Math.min((now - lastNow) / 1000, 0.05);
       lastNow  = now;
 
-      // ── 1. Color Lerping ───────────────────────────────────────────────────
+      // ── 1. Color Lerping — album palette when playing, default when idle ──
+      const isActive = activeRef.current;
+      const blobTarget = isActive ? tgtBlobs.current : DEFAULT_PALETTE.blobs as RGB[];
+      const bgTarget   = isActive ? tgtBg.current    : DEFAULT_PALETTE.bgBase as RGB;
+      const waveTarget = isActive ? tgtWaves.current : DEFAULT_PALETTE.waves as RGB[];
+
       const cb = curBlobs.current;
-      const tb = tgtBlobs.current;
-      for (let i = 0; i < 6; i++) cb[i] = lerpRgb(cb[i], tb[i]);
-      curBg.current = lerpRgb(curBg.current, tgtBg.current);
+      for (let i = 0; i < 6; i++) cb[i] = lerpRgb(cb[i], blobTarget[i] ?? blobTarget[blobTarget.length - 1]);
+      curBg.current = lerpRgb(curBg.current, bgTarget);
 
       const cw = curWaves.current;
-      const tw = tgtWaves.current;
-      for (let i = 0; i < 5; i++) cw[i] = lerpRgb(cw[i], tw[i]);
+      for (let i = 0; i < 5; i++) cw[i] = lerpRgb(cw[i], waveTarget[i]);
 
       // ── 2. Blob Background (Downscaled & Always Active) ──────────────────
       // Use logical dimensions for drawing math, scaled down by context
@@ -214,7 +217,6 @@ const EqVisualizer = () => {
       const wCW = wCanvas.width;
       // @ts-ignore
       const wCH = wCanvas.height;
-      const isActive = activeRef.current;
 
       const targetOp = isActive ? 1.0 : 0.22;
       opacRef.current += (targetOp - opacRef.current) * 0.022;
