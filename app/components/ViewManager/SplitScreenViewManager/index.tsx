@@ -77,7 +77,7 @@ const SplitScreenViewManager = ({
           </AnimatePresence>
         </ContentContainer>
       </LeftPanel>
-      <PreviewPanel $isHidden={allHidden} />
+      <PreviewPanel $isHidden={menuHidden || allHidden} />
     </Container>
   );
 };

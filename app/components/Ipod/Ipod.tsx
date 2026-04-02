@@ -17,8 +17,10 @@ import {
 } from "@/components/Ipod/Styled";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ViewContextProvider from "@/providers/ViewContextProvider";
+import { ScreenGlassProvider } from "@/providers/ScreenGlassProvider";
 import { GlobalStyles } from "@/components/Ipod/GlobalStyles";
 import EqVisualizer from "@/components/EqVisualizer";
+import ScreenBackground from "@/components/ScreenBackground";
 
 const Ipod = () => {
   const queryClient = new QueryClient();
@@ -30,22 +32,25 @@ const Ipod = () => {
         <ViewContextProvider>
           <AudioPlayerProvider>
             <EqVisualizer />
-            <SettingsContext.Consumer>
-              {([{ deviceTheme }]) => (
-                <Shell $deviceTheme={deviceTheme}>
-                  <Sticker $deviceTheme={deviceTheme} />
-                  <Sticker2 $deviceTheme={deviceTheme} />
-                  <Sticker3 $deviceTheme={deviceTheme} />
-                  <ScreenContainer>
-                    <ViewManager />
-                    <ScreenOverlay />
-                  </ScreenContainer>
-                  <ClickWheelContainer>
-                    <ClickWheel />
-                  </ClickWheelContainer>
-                </Shell>
-              )}
-            </SettingsContext.Consumer>
+            <ScreenGlassProvider>
+              <SettingsContext.Consumer>
+                {([{ deviceTheme }]) => (
+                  <Shell $deviceTheme={deviceTheme}>
+                    <Sticker $deviceTheme={deviceTheme} />
+                    <Sticker2 $deviceTheme={deviceTheme} />
+                    <Sticker3 $deviceTheme={deviceTheme} />
+                    <ScreenContainer>
+                      <ScreenBackground />
+                      <ViewManager />
+                      <ScreenOverlay />
+                    </ScreenContainer>
+                    <ClickWheelContainer>
+                      <ClickWheel />
+                    </ClickWheelContainer>
+                  </Shell>
+                )}
+              </SettingsContext.Consumer>
+            </ScreenGlassProvider>
           </AudioPlayerProvider>
         </ViewContextProvider>
       </SettingsProvider>
