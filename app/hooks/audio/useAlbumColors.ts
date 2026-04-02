@@ -68,25 +68,39 @@ function hslToRgb(h: number, s: number, l: number): RGB {
 
 // ── Palette generation from a single dominant hue ─────────────────────────────
 function buildPalette(hue: number, sat: number): AlbumPalette {
-  // Boost saturation so even muted art produces vivid waves
-  const s = Math.max(55, Math.min(100, sat * 1.15));
+  // Moderate boost — respect the source material's colour temperature
+  const s = Math.max(45, Math.min(100, sat * 1.10));
   return {
     waves: [
-      hslToRgb(hue, s,            22),  // darkest  – sub-bass
-      hslToRgb(hue, s,            38),  // rich     – bass
-      hslToRgb(hue, s * 0.92,    55),  // vivid    – low-mid
-      hslToRgb(hue, s * 0.60,    72),  // lighter  – mid
-      hslToRgb(hue, s * 0.28,    88),  // pale     – treble
+      hslToRgb(hue, s,           28),  // darkest  – sub-bass
+      hslToRgb(hue, s,           42),  // rich     – bass
+      hslToRgb(hue, s * 0.90,   56),  // vivid    – low-mid
+      hslToRgb(hue, s * 0.58,   70),  // lighter  – mid
+      hslToRgb(hue, s * 0.26,   84),  // pale     – treble
     ],
-    bgMid:  hslToRgb(hue, Math.min(75, s * 0.45), 7),
-    bgEdge: hslToRgb(hue, Math.min(40, s * 0.20), 2),
+    bgMid:  hslToRgb(hue, Math.min(70, s * 0.40), 7),
+    bgEdge: hslToRgb(hue, Math.min(35, s * 0.18), 2),
   };
 }
 
-// ── Dominant-hue extraction via weighted circular mean ────────────────────────
-// Fetches artwork as a blob (avoids canvas-taint CORS restriction),
-// draws it to a tiny offscreen canvas, then accumulates a saturation-weighted
-// circular mean of each pixel's hue — ignoring near-black, near-white, and grey.
+// ── Dominant-hue extraction via hue-bucket voting ─────────────────────────────
+//
+// Why buckets instead of a global circular mean:
+//   A global circular mean averages ALL hues together. If an album has 60% warm
+//   orange and 40% cool blue, the mean lands on yellow-green — a colour that
+//   appears nowhere in the image. Bucketing finds the dominant hue REGION first,
+//   then computes a precise mean only within that winning region.
+//
+// Algorithm:
+//   1. Draw artwork to a 64×64 offscreen canvas.
+//   2. For each pixel compute HSL; skip near-black, near-white, and grey.
+//   3. Weight each pixel by saturation × proximity-to-50%-lightness.
+//   4. Accumulate weighted votes into 36 hue buckets (10° each).
+//   5. Smooth bucket weights with neighbours (handles hues that straddle a bucket edge).
+//   6. Find the winning bucket.
+//   7. Compute a circular mean using only pixels whose hue falls within ±25° of
+//      the winning bucket centre — giving a precise, uncontaminated hue value.
+//   8. Build the wave palette from that hue + its average saturation.
 async function extractPalette(url: string): Promise<AlbumPalette> {
   const blob = await fetch(url).then((r) => {
     if (!r.ok) throw new Error("artwork fetch failed");
@@ -100,17 +114,23 @@ async function extractPalette(url: string): Promise<AlbumPalette> {
     img.onload = () => {
       URL.revokeObjectURL(objUrl);
 
-      const SIZE = 48;
-      const canvas = document.createElement("canvas");
-      canvas.width = SIZE;
-      canvas.height = SIZE;
-      const ctx = canvas.getContext("2d");
+      const SIZE = 64;
+      const offscreen = document.createElement("canvas");
+      offscreen.width = SIZE;
+      offscreen.height = SIZE;
+      const ctx = offscreen.getContext("2d");
       if (!ctx) { resolve(DEFAULT_PALETTE); return; }
 
       ctx.drawImage(img, 0, 0, SIZE, SIZE);
       const { data } = ctx.getImageData(0, 0, SIZE, SIZE);
 
-      let sinAcc = 0, cosAcc = 0, satAcc = 0, totalW = 0;
+      // Step 1 — fill hue buckets
+      const NBUCKETS = 36;
+      const DEG_PER  = 360 / NBUCKETS;
+      const bWeight  = new Float32Array(NBUCKETS);
+      const bSinAcc  = new Float32Array(NBUCKETS);
+      const bCosAcc  = new Float32Array(NBUCKETS);
+      const bSatAcc  = new Float32Array(NBUCKETS);
 
       for (let i = 0; i < data.length; i += 4) {
         const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
@@ -118,25 +138,45 @@ async function extractPalette(url: string): Promise<AlbumPalette> {
 
         const [h, s, l] = rgbToHsl(r, g, b);
 
-        // Skip near-black, near-white, and low-saturation (grey) pixels
-        if (l < 8 || l > 92 || s < 12) continue;
+        // Skip near-black, near-white, and achromatic pixels
+        if (l < 5 || l > 95 || s < 8) continue;
 
-        // Weight by saturation × distance from 50% lightness
-        const w = s * (1 - Math.abs(l / 100 - 0.5) * 1.4);
+        // Weight: peaks at 50% lightness and high saturation
+        const w = s * Math.max(0, 1 - Math.abs(l / 100 - 0.5) * 1.6);
         if (w <= 0) continue;
 
-        // Circular mean (handles 0°/360° wraparound correctly)
-        sinAcc += Math.sin((h * Math.PI) / 180) * w;
-        cosAcc += Math.cos((h * Math.PI) / 180) * w;
-        satAcc += s * w;
-        totalW += w;
+        const bi = Math.floor(h / DEG_PER) % NBUCKETS;
+        bWeight[bi] += w;
+        bSinAcc[bi] += Math.sin((h * Math.PI) / 180) * w;
+        bCosAcc[bi] += Math.cos((h * Math.PI) / 180) * w;
+        bSatAcc[bi] += s * w;
       }
 
-      if (totalW < 8) { resolve(DEFAULT_PALETTE); return; }
+      // Step 2 — smooth adjacent buckets (handles hues on bucket edges)
+      const smoothed = new Float32Array(NBUCKETS);
+      for (let i = 0; i < NBUCKETS; i++) {
+        smoothed[i] =
+          bWeight[(i - 1 + NBUCKETS) % NBUCKETS] * 0.25 +
+          bWeight[i]                               * 0.50 +
+          bWeight[(i + 1) % NBUCKETS]              * 0.25;
+      }
 
-      const rawH = (Math.atan2(sinAcc, cosAcc) * 180) / Math.PI;
-      const hue = rawH < 0 ? rawH + 360 : rawH;
-      const sat = satAcc / totalW;
+      // Step 3 — find winning bucket
+      let maxBucket = 0, maxW = 0;
+      for (let i = 0; i < NBUCKETS; i++) {
+        if (smoothed[i] > maxW) { maxW = smoothed[i]; maxBucket = i; }
+      }
+
+      if (maxW < 1) { resolve(DEFAULT_PALETTE); return; }
+
+      // Step 4 — precise hue via circular mean of the winning bucket's pixels
+      const winSin = bSinAcc[maxBucket];
+      const winCos = bCosAcc[maxBucket];
+      const rawH   = (Math.atan2(winSin, winCos) * 180) / Math.PI;
+      const hue    = rawH < 0 ? rawH + 360 : rawH;
+      const sat    = bWeight[maxBucket] > 0
+        ? bSatAcc[maxBucket] / bWeight[maxBucket]
+        : 70;
 
       resolve(buildPalette(hue, sat));
     };
