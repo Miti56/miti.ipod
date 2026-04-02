@@ -49,7 +49,7 @@ export type ViewProps = {
   brickGame: undefined;
   coverFlow: undefined;
   photoLibrary: undefined;
-  photoViewer: { url: string; name: string };
+  photoViewer: { photos: { url: string; name: string }[]; initialIndex: number };
 };
 
 export type ViewId = keyof ViewProps;

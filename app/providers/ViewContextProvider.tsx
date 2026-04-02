@@ -23,7 +23,8 @@ export type ActionSheetId =
   | "sign-out-popup"
   | "shuffle-mode-action-sheet"
   | "repeat-mode-action-sheet"
-  | "haptics-action-sheet";
+  | "haptics-action-sheet"
+  | "click-sound-action-sheet";
 
 /**
  * Screen view instance - references a view in the registry

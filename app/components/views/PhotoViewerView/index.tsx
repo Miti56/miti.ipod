@@ -1,5 +1,8 @@
-import { useMenuHideView } from "@/hooks";
+import { useCallback, useState } from "react";
 import styled from "styled-components";
+
+import { useEventListener, useMenuHideView } from "@/hooks";
+import { IpodEvent } from "@/utils/events";
 
 const Container = styled.div`
   position: absolute;
@@ -18,16 +21,32 @@ const Photo = styled.img`
 `;
 
 interface Props {
-  url: string;
-  name: string;
+  photos: { url: string; name: string }[];
+  initialIndex: number;
 }
 
-const PhotoViewerView = ({ url, name }: Props) => {
+const PhotoViewerView = ({ photos, initialIndex }: Props) => {
   useMenuHideView("photoViewer");
+
+  const [index, setIndex] = useState(initialIndex);
+
+  const handleForward = useCallback(() => {
+    setIndex((prev) => (prev < photos.length - 1 ? prev + 1 : prev));
+  }, [photos.length]);
+
+  const handleBackward = useCallback(() => {
+    setIndex((prev) => (prev > 0 ? prev - 1 : prev));
+  }, []);
+
+  useEventListener<IpodEvent>("forwardscroll", handleForward);
+  useEventListener<IpodEvent>("backwardscroll", handleBackward);
+
+  const current = photos[index];
+  if (!current) return null;
 
   return (
     <Container>
-      <Photo src={url} alt={name} />
+      <Photo src={current.url} alt={current.name} />
     </Container>
   );
 };

@@ -11,17 +11,26 @@ const PhotoLibraryView = () => {
 
   const { data: photos, isLoading } = useFetchPhotos();
 
-  const options: SelectableListOption[] = useMemo(
+  const photoList = useMemo(
     () =>
       (photos ?? []).map((photo, index) => ({
-        type: "view",
-        label: photo.name || `Photo ${index + 1}`,
-        imageUrl: photo.url,
-        viewId: "photoViewer" as const,
-        headerTitle: photo.name || `Photo ${index + 1}`,
-        props: { url: photo.url, name: photo.name || `Photo ${index + 1}` },
+        url: photo.url,
+        name: photo.name || `Photo ${index + 1}`,
       })),
     [photos]
+  );
+
+  const options: SelectableListOption[] = useMemo(
+    () =>
+      photoList.map((photo, index) => ({
+        type: "view",
+        label: photo.name,
+        imageUrl: photo.url,
+        viewId: "photoViewer" as const,
+        headerTitle: photo.name,
+        props: { photos: photoList, initialIndex: index },
+      })),
+    [photoList]
   );
 
   const [scrollIndex, handleItemClick] = useScrollHandler(
