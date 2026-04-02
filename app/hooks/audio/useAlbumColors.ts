@@ -4,34 +4,21 @@ import { useEffect, useRef, useState } from "react";
 export type RGB = [number, number, number];
 
 export interface AlbumPalette {
-  /** 5 colors ordered dark→light: kept for potential future wave overlay use */
   waves: RGB[];
-  /** 6 vivid mid-tone colors for the ambient fluid blobs */
   blobs: RGB[];
-  /** Very dark tinted colour for the background radial gradient centre */
   bgMid: RGB;
-  /** Near-black for the background radial gradient edge */
   bgEdge: RGB;
-  /** Very light tinted colour — the solid base behind the blobs */
   bgBase: RGB;
 }
 
-// ── Fallback — soft Apple-blue/violet palette (used when no artwork) ──────────
+// ── Fallback ──────────────────────────────────────────────────────────────────
 export const DEFAULT_PALETTE: AlbumPalette = {
   waves: [
-    [200, 55, 10],
-    [255, 118, 32],
-    [255, 188, 62],
-    [255, 224, 138],
-    [255, 248, 214],
+    [200, 55, 10], [255, 118, 32], [255, 188, 62], [255, 224, 138], [255, 248, 214]
   ],
   blobs: [
-    [120, 155, 230],  // periwinkle blue
-    [170, 120, 215],  // violet-purple
-    [215, 130, 185],  // rose
-    [130, 195, 215],  // sky blue
-    [180, 165, 225],  // lavender
-    [215, 155, 155],  // soft coral
+    [120, 155, 230], [170, 120, 215], [215, 130, 185],
+    [130, 195, 215], [180, 165, 225], [215, 155, 155]
   ],
   bgMid:  [55, 16, 4],
   bgEdge: [4, 2, 1],
@@ -79,12 +66,27 @@ function hslToRgb(h: number, s: number, l: number): RGB {
   ];
 }
 
-// ── Palette generation from a single dominant hue ─────────────────────────────
-function buildPalette(hue: number, sat: number): AlbumPalette {
-  const s  = Math.max(45, Math.min(100, sat * 1.10));
-  // Blob saturation: vivid enough to read on a near-white background
-  const vs = Math.max(55, Math.min(88, sat * 1.08));
-  const L  = 62; // base lightness for blobs — visible on light bg, not garish
+// ── Dynamic Palette Builder ───────────────────────────────────────────────────
+function buildPalette(hue: number, bucketSat: number, avgL: number, avgS: number): AlbumPalette {
+  const isDark = avgL < 40;
+
+  // 1. Base background tracks the album's true average lightness.
+  // Black albums get dark backgrounds. White albums get light backgrounds.
+  const baseL = Math.max(6, Math.min(94, avgL));
+
+  // 2. Mid and Edge gradients fade naturally from the base.
+  const midL = isDark ? Math.max(2, baseL - 6) : Math.max(10, baseL - 15);
+  const edgeL = isDark ? Math.max(0, baseL - 12) : Math.max(5, baseL - 25);
+
+  // 3. Blob Lightness: Needs to contrast slightly with the background so they are visible.
+  // If the background is dark (e.g., 15), blobs should be bumped to ~40.
+  const blobL = isDark ? Math.min(55, baseL + 25) : Math.max(45, baseL - 15);
+
+  // 4. Saturation: If the whole image is grey/black (avgS < 20), mute the blobs
+  // so a tiny gold speck doesn't turn the whole screen neon yellow.
+  const s = Math.max(10, Math.min(100, bucketSat));
+  const vs = avgS < 20 ? s * 0.55 : Math.max(30, Math.min(90, s * 1.1));
+
   return {
     waves: [
       hslToRgb(hue, s,           28),
@@ -93,40 +95,21 @@ function buildPalette(hue: number, sat: number): AlbumPalette {
       hslToRgb(hue, s * 0.58,   70),
       hslToRgb(hue, s * 0.26,   84),
     ],
-    // Six blob colors: dominant hue + harmonious offsets within ±60°
     blobs: [
-      hslToRgb(hue,       vs,          L),
-      hslToRgb(hue + 28,  vs * 0.90,  L + 6),
-      hslToRgb(hue - 28,  vs * 0.85,  L - 4),
-      hslToRgb(hue + 55,  vs * 0.78,  L + 8),
-      hslToRgb(hue - 55,  vs * 0.82,  L + 4),
-      hslToRgb(hue + 14,  vs * 0.70,  L + 12),
+      hslToRgb(hue,       vs,          blobL),
+      hslToRgb(hue + 28,  vs * 0.90,  blobL + 4),
+      hslToRgb(hue - 28,  vs * 0.85,  blobL - 3),
+      hslToRgb(hue + 55,  vs * 0.78,  blobL + 6),
+      hslToRgb(hue - 55,  vs * 0.82,  blobL + 3),
+      hslToRgb(hue + 14,  vs * 0.70,  blobL + 8),
     ],
-    bgMid:  hslToRgb(hue, Math.min(70, s * 0.40), 7),
-    bgEdge: hslToRgb(hue, Math.min(35, s * 0.18), 2),
-    // Near-white base, very lightly tinted with the dominant hue
-    bgBase: hslToRgb(hue, Math.min(22, s * 0.18), 97),
+    bgBase: hslToRgb(hue, Math.min(40, vs * 0.3), baseL),
+    bgMid:  hslToRgb(hue, Math.min(50, vs * 0.4), midL),
+    bgEdge: hslToRgb(hue, Math.min(60, vs * 0.5), edgeL),
   };
 }
 
-// ── Dominant-hue extraction via hue-bucket voting ─────────────────────────────
-//
-// Why buckets instead of a global circular mean:
-//   A global circular mean averages ALL hues together. If an album has 60% warm
-//   orange and 40% cool blue, the mean lands on yellow-green — a colour that
-//   appears nowhere in the image. Bucketing finds the dominant hue REGION first,
-//   then computes a precise mean only within that winning region.
-//
-// Algorithm:
-//   1. Draw artwork to a 64×64 offscreen canvas.
-//   2. For each pixel compute HSL; skip near-black, near-white, and grey.
-//   3. Weight each pixel by saturation × proximity-to-50%-lightness.
-//   4. Accumulate weighted votes into 36 hue buckets (10° each).
-//   5. Smooth bucket weights with neighbours (handles hues that straddle a bucket edge).
-//   6. Find the winning bucket.
-//   7. Compute a circular mean using only pixels whose hue falls within ±25° of
-//      the winning bucket centre — giving a precise, uncontaminated hue value.
-//   8. Build the wave palette from that hue + its average saturation.
+// ── Dominant-hue & True-Lightness extraction ──────────────────────────────────
 async function extractPalette(url: string): Promise<AlbumPalette> {
   const blob = await fetch(url).then((r) => {
     if (!r.ok) throw new Error("artwork fetch failed");
@@ -150,7 +133,6 @@ async function extractPalette(url: string): Promise<AlbumPalette> {
       ctx.drawImage(img, 0, 0, SIZE, SIZE);
       const { data } = ctx.getImageData(0, 0, SIZE, SIZE);
 
-      // Step 1 — fill hue buckets
       const NBUCKETS = 36;
       const DEG_PER  = 360 / NBUCKETS;
       const bWeight  = new Float32Array(NBUCKETS);
@@ -158,14 +140,25 @@ async function extractPalette(url: string): Promise<AlbumPalette> {
       const bCosAcc  = new Float32Array(NBUCKETS);
       const bSatAcc  = new Float32Array(NBUCKETS);
 
+      // Track the TRUE average lightness and saturation of the entire image
+      let totalL = 0;
+      let totalS = 0;
+      let validPixels = 0;
+
       for (let i = 0; i < data.length; i += 4) {
         const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
-        if (a < 128) continue;
+        if (a < 128) continue; // skip transparent
 
         const [h, s, l] = rgbToHsl(r, g, b);
 
-        // Skip near-black, near-white, and achromatic pixels
-        if (l < 5 || l > 95 || s < 8) continue;
+        totalL += l;
+        totalS += s;
+        validPixels++;
+
+        // We still skip pure black/white/grey for the HUE bucket voting,
+        // because we want the accent color (e.g., Gold). We've just lowered
+        // the strictness so we don't miss muted accents.
+        if (l < 4 || l > 96 || s < 5) continue;
 
         // Weight: peaks at 50% lightness and high saturation
         const w = s * Math.max(0, 1 - Math.abs(l / 100 - 0.5) * 1.6);
@@ -178,7 +171,11 @@ async function extractPalette(url: string): Promise<AlbumPalette> {
         bSatAcc[bi] += s * w;
       }
 
-      // Step 2 — smooth adjacent buckets (handles hues on bucket edges)
+      // Calculate the true averages
+      const avgL = validPixels > 0 ? totalL / validPixels : 50;
+      const avgS = validPixels > 0 ? totalS / validPixels : 50;
+
+      // Smooth adjacent buckets
       const smoothed = new Float32Array(NBUCKETS);
       for (let i = 0; i < NBUCKETS; i++) {
         smoothed[i] =
@@ -187,24 +184,30 @@ async function extractPalette(url: string): Promise<AlbumPalette> {
           bWeight[(i + 1) % NBUCKETS]              * 0.25;
       }
 
-      // Step 3 — find winning bucket
+      // Find winning bucket
       let maxBucket = 0, maxW = 0;
       for (let i = 0; i < NBUCKETS; i++) {
         if (smoothed[i] > maxW) { maxW = smoothed[i]; maxBucket = i; }
       }
 
-      if (maxW < 1) { resolve(DEFAULT_PALETTE); return; }
+      if (maxW < 1) {
+        // If literally zero color was found (pure greyscale image),
+        // generate a monochrome palette based purely on average lightness.
+        resolve(buildPalette(0, 0, avgL, avgS));
+        return;
+      }
 
-      // Step 4 — precise hue via circular mean of the winning bucket's pixels
+      // Precise hue via circular mean
       const winSin = bSinAcc[maxBucket];
       const winCos = bCosAcc[maxBucket];
       const rawH   = (Math.atan2(winSin, winCos) * 180) / Math.PI;
       const hue    = rawH < 0 ? rawH + 360 : rawH;
-      const sat    = bWeight[maxBucket] > 0
+      const bucketSat = bWeight[maxBucket] > 0
         ? bSatAcc[maxBucket] / bWeight[maxBucket]
         : 70;
 
-      resolve(buildPalette(hue, sat));
+      // Pass the Hue, AND the overall context of the image
+      resolve(buildPalette(hue, bucketSat, avgL, avgS));
     };
 
     img.onerror = () => {
