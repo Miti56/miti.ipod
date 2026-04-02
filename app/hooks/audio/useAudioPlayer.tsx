@@ -96,6 +96,9 @@ export const AudioPlayerProvider = ({ children }: Props) => {
   const queueRef = useRef<MediaApi.Song[]>([]);
   const currentIndexRef = useRef<number>(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // New ref to hold our GainNode (volume control)
+  const gainNodeRef = useRef<GainNode | null>(null);
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
 
   const [volume, setVolumeState] = useState(0.5);
@@ -123,14 +126,30 @@ export const AudioPlayerProvider = ({ children }: Props) => {
           const AudioCtx =
             window.AudioContext || (window as any).webkitAudioContext;
           const actx = new AudioCtx({ latencyHint: "interactive" });
+
           const source = actx.createMediaElementSource(audioRef.current);
           const analyser = actx.createAnalyser();
+          const gainNode = actx.createGain(); // Create Web Audio volume control
+
           analyser.fftSize = 2048;
           analyser.smoothingTimeConstant = 0.82;
+
+          // Initial volume setup to avoid blasting at 100% on start
+          const savedVolume = parseFloat(localStorage.getItem(VOLUME_KEY) ?? "0.5");
+          gainNode.gain.value = savedVolume;
+
+          // PROPER ROUTING:
+          // Source -> Analyser (Visualizer) -> GainNode (Volume) -> Destination (Speakers)
           source.connect(analyser);
-          analyser.connect(actx.destination);
+          analyser.connect(gainNode);
+          gainNode.connect(actx.destination);
+
           audioCtxRef.current = actx;
+          gainNodeRef.current = gainNode;
           setAnalyserNode(analyser);
+
+          // Force the HTMLAudioElement to 100%. Web Audio GainNode handles the volume now!
+          audioRef.current.volume = 1;
         } catch {
           // Web Audio not supported
         }
@@ -252,7 +271,11 @@ export const AudioPlayerProvider = ({ children }: Props) => {
   }, []);
 
   const handleChangeVolume = useCallback((newVolume: number) => {
-    if (audioRef.current) {
+    if (gainNodeRef.current && audioCtxRef.current) {
+      // Smoothly ramp volume to prevent audio popping/clicks
+      gainNodeRef.current.gain.setTargetAtTime(newVolume, audioCtxRef.current.currentTime, 0.05);
+    } else if (audioRef.current) {
+      // Fallback for browsers where Web Audio API failed
       audioRef.current.volume = newVolume;
     }
     localStorage.setItem(VOLUME_KEY, `${newVolume}`);

@@ -97,6 +97,9 @@ const EqVisualizer = () => {
   // ── Audio state ────────────────────────────────────────────────────────────
   const bassS     = useRef<Spr>({ v: 0, x: 0 });
   const midS      = useRef<Spr>({ v: 0, x: 0 });
+  // ADD THESE TWO LINES:
+  const bassFloor = useRef(0);
+  const midFloor  = useRef(0);
   const freqRef   = useRef(new Uint8Array(1024));
   const opacRef   = useRef(0.0);
   const activeRef = useRef(false);
@@ -245,17 +248,22 @@ const EqVisualizer = () => {
         const rawB = avg(1, 8);
         const rawM = avg(8, 60);
 
-        // 2. Apply an exponential curve (power of 2.5 and 2.0).
-        // This ensures only the sharpest peaks reach 1.0, while sustained drone/vocals stay lower.
-        const bassRaw = Math.min(1, Math.pow(rawB, 2.5) * 4.5);
-        const midRaw  = Math.min(1, Math.pow(rawM, 2.0) * 3.5);
+        // 2. DYNAMIC FLOOR (The Magic Fix for Synths)
+        // If a loud synth holds a note, this slowly rises to meet it (0.005).
+        // When the synth stops, it drops back down a bit faster (0.02).
+        bassFloor.current += (rawB - bassFloor.current) * (rawB > bassFloor.current ? 0.005 : 0.02);
+        midFloor.current  += (rawM - midFloor.current)  * (rawM > midFloor.current  ? 0.005 : 0.02);
 
-        // 3. Slightly stiffer springs (0.15 instead of 0.10) with lower damping
-        // so the waves snap back down faster between heavy beats.
+        // 3. Extract ONLY the transient (the beat) by subtracting the synth floor, then scale it up.
+        // Because we subtract the heavy floor, we can safely use a higher multiplier (3.5) without clipping.
+        const bassRaw = Math.min(1, Math.max(0, rawB - bassFloor.current) * 3.5);
+        const midRaw  = Math.min(1, Math.max(0, rawM - midFloor.current) * 3.0);
+
+        // 4. Snappy springs
         const bassVal = spr(bassS.current, bassRaw, 0.15, 0.65);
-        const midVal  = spr(midS.current,  midRaw,  0.15, 0.68);
+        const midVal  = spr(midS.current,  midRaw,  0.15, 0.70);
 
-        // 4. Increase beat detection threshold slightly to ignore vocal mud
+        // 5. Beat detection
         if (bassRaw - prevBassR.current > 0.15) beatRef.current = 1.0;
         beatRef.current   *= 0.90;
         prevBassR.current  = bassRaw;
