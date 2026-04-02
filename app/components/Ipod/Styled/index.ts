@@ -1,4 +1,4 @@
-import styled, { css } from "styled-components";
+import styled from "styled-components";
 import { Screen, Unit } from "@/utils/constants";
 import { DeviceThemeName, getTheme } from "@/utils/themes";
 import { SCREEN_TEXTURE } from "@/utils/constants/screenTexture";
