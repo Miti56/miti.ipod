@@ -1,7 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import styled from "styled-components";
 
-import { useEventListener, useMenuHideView } from "@/hooks";
+import { useEventListener, useMenuHideView, useViewContext } from "@/hooks";
 import { IpodEvent } from "@/utils/events";
 
 const Container = styled.div`
@@ -28,7 +28,12 @@ interface Props {
 const PhotoViewerView = ({ photos, initialIndex }: Props) => {
   useMenuHideView("photoViewer");
 
+  const { setHeaderTitle } = useViewContext();
   const [index, setIndex] = useState(initialIndex);
+
+  useEffect(() => {
+    setHeaderTitle(photos[index]?.name);
+  }, [index, photos, setHeaderTitle]);
 
   const handleForward = useCallback(() => {
     setIndex((prev) => (prev < photos.length - 1 ? prev + 1 : prev));

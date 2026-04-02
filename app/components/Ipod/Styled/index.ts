@@ -1,6 +1,7 @@
-import styled from "styled-components";
+import styled, { css } from "styled-components";
 import { Screen, Unit } from "@/utils/constants";
 import { DeviceThemeName, getTheme } from "@/utils/themes";
+import { SCREEN_TEXTURE } from "@/utils/constants/screenTexture";
 
 export const Shell = styled.div<{ $deviceTheme: DeviceThemeName }>`
   position: relative;
@@ -65,6 +66,32 @@ export const ScreenContainer = styled.div`
 
 export const ClickWheelContainer = styled.div`
   margin: auto;
+`;
+
+/**
+ * Texture overlay rendered on top of the screen content.
+ * All settings are driven by SCREEN_TEXTURE in app/utils/constants/screenTexture.ts.
+ * pointer-events: none ensures it never intercepts clicks or scrolls.
+ */
+export const ScreenOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  border-radius: inherit;
+
+  background-image: url("/textures/${SCREEN_TEXTURE.file}");
+  background-size: ${SCREEN_TEXTURE.size};
+  background-position: center;
+  background-repeat: no-repeat;
+
+  mix-blend-mode: ${SCREEN_TEXTURE.blendMode};
+  opacity: ${SCREEN_TEXTURE.opacity};
+
+  filter:
+    contrast(${SCREEN_TEXTURE.contrast})
+    brightness(${SCREEN_TEXTURE.brightness})
+    ${SCREEN_TEXTURE.invert ? "invert(1)" : "invert(0)"};
 `;
 
 export const Sticker = styled.div<{ $deviceTheme: DeviceThemeName }>`

@@ -29,13 +29,22 @@ const useClickWheelSound = () => {
   const { clickSoundEnabled } = useSettings();
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  /** Lazily create the AudioContext on first use (browsers require user gesture). */
+  /**
+   * Create the AudioContext once on mount with the lowest possible latency hint.
+   * It starts in "suspended" state (browser requirement) and gets resumed on the
+   * first user gesture — we call resume() inside playSound so the first actual
+   * interaction unblocks it with zero extra delay.
+   */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    audioCtxRef.current = new (window.AudioContext ||
+      (window as any).webkitAudioContext)({ latencyHint: "interactive" });
+    return () => {
+      audioCtxRef.current?.close();
+    };
+  }, []);
+
   const getAudioCtx = useCallback((): AudioContext | null => {
-    if (typeof window === "undefined") return null;
-    if (!audioCtxRef.current) {
-      audioCtxRef.current = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
-    }
     return audioCtxRef.current;
   }, []);
 
@@ -44,6 +53,13 @@ const useClickWheelSound = () => {
       if (!clickSoundEnabled) return;
       const ctx = getAudioCtx();
       if (!ctx) return;
+
+      // Resume instantly if the browser suspended the context between gestures.
+      // This is synchronous enough that scheduling at currentTime still fires
+      // without perceptible delay.
+      if (ctx.state === "suspended") {
+        ctx.resume();
+      }
 
       const now = ctx.currentTime;
 
@@ -147,12 +163,7 @@ const useClickWheelSound = () => {
   useEventListener<IpodEvent>("forwardclick", handleButton);
   useEventListener<IpodEvent>("playpauseclick", handleButton);
 
-  // Close AudioContext on unmount to release system resources.
-  useEffect(() => {
-    return () => {
-      audioCtxRef.current?.close();
-    };
-  }, []);
+
 };
 
 export default useClickWheelSound;

@@ -8,6 +8,7 @@ import {
 import { ClickWheel, ViewManager } from "@/components";
 import {
   ScreenContainer,
+  ScreenOverlay,
   ClickWheelContainer,
   Shell,
   Sticker,
@@ -35,6 +36,7 @@ const Ipod = () => {
                   <Sticker3 $deviceTheme={deviceTheme} />
                   <ScreenContainer>
                     <ViewManager />
+                    <ScreenOverlay />
                   </ScreenContainer>
                   <ClickWheelContainer>
                     <ClickWheel />
