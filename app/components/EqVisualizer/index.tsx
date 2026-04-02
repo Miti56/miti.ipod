@@ -7,10 +7,11 @@ import { useAlbumColors, DEFAULT_PALETTE, RGB } from "@/hooks/audio/useAlbumColo
 // Two-layer visual system:
 //
 // BACKGROUND — Ambient lava-lamp blobs (full viewport, heavy CSS blur).
-// FOREGROUND — iOS-style layered ocean waves. Bass/mid spring-driven.
+//   Always alive. Colors lerp toward album art. No audio reactivity.
 //
-// MATH: Uses dtScale for perfect rhythm synchronization across 30Hz/60Hz/120Hz
-// displays without the CPU overhead of a fixed-timestep while loop.
+// FOREGROUND — iOS-style layered ocean waves (full viewport, transparent bg).
+//   From commit 966a5d4a. Bass/mid spring-driven. Blurred back layers give
+//   atmospheric depth. Front layers have glow. Colors from album art.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PADDING = 140;
@@ -25,7 +26,7 @@ const BLOBS = [
   { cx:0.50, cy:0.78, rx:[0.26,0.08], ry:[0.24,0.12], sx:[0.103,0.081], sy:[0.091,0.118], radius:0.48, alpha:0.60, pi:5 },
 ] as const;
 
-// ── Wave layer config ─────────────────────────────────────────────────────────
+// ── Wave layer config (from 966a5d4a) ─────────────────────────────────────────
 const LAYERS = [
   { blur: 20, amp: 0.240, speeds: [0.11, 0.07, 0.04], freqs: [1.4, 2.3, 0.8],  yFrac: 0.535, alpha: 0.13, pi: 0 },
   { blur: 9,  amp: 0.185, speeds: [0.18, 0.11, 0.06], freqs: [1.9, 3.1, 1.2],  yFrac: 0.515, alpha: 0.21, pi: 1 },
@@ -35,21 +36,21 @@ const LAYERS = [
 ];
 const W0 = 0.55, W1 = 0.30, W2 = 0.15;
 
-// ── Helpers (Upgraded for dtScale) ─────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────────
 interface Spr { v: number; x: number }
-function spr(s: Spr, target: number, k: number, damp: number, dtScale: number): number {
-  s.v += (target - s.x) * (k * dtScale);
-  s.v *= Math.pow(damp, dtScale); // Exponential decay based on time passed
-  s.x += s.v * dtScale;
+function spr(s: Spr, target: number, k: number, damp: number): number {
+  s.v += (target - s.x) * k;
+  s.v *= damp;
+  s.x += s.v;
   return s.x;
 }
 
-function lerpRgb(a: RGB, b: RGB, dtScale: number): RGB {
-  const cl = 0.020 * dtScale;
+const CL = 0.020;
+function lerpRgb(a: RGB, b: RGB): RGB {
   return [
-    a[0] + (b[0] - a[0]) * cl,
-    a[1] + (b[1] - a[1]) * cl,
-    a[2] + (b[2] - a[2]) * cl,
+    a[0] + (b[0] - a[0]) * CL,
+    a[1] + (b[1] - a[1]) * CL,
+    a[2] + (b[2] - a[2]) * CL,
   ];
 }
 const cs = (c: RGB) => `${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])}`;
@@ -122,12 +123,13 @@ const EqVisualizer = () => {
     if (!bCtx || !wCtx) return;
 
     const DOWNSCALE = 0.2;
-    const isMobileRef = { current: window.innerWidth <= 576 };
+    // Track mobile view cleanly
+    let isMobile = window.innerWidth <= 768;
 
     const resize = () => {
-      isMobileRef.current = window.innerWidth <= 768;
+      if (!wCanvas || !bCanvas) return;
+      isMobile = window.innerWidth <= 768;
 
-      // Revert wave canvas to standard 1:1 dimensions
       wCanvas.width  = window.innerWidth;
       wCanvas.height = window.innerHeight;
       wCanvas.style.width  = `${window.innerWidth}px`;
@@ -153,12 +155,8 @@ const EqVisualizer = () => {
       if (!alive) return;
       rafRef.current = requestAnimationFrame(frame);
 
-      // Get delta time (capped at 20fps equivalent so tabs don't explode when sleeping)
       const dt = Math.min((now - lastNow) / 1000, 0.05);
       lastNow  = now;
-
-      // Calculate a multiplier. At 60fps, dtScale is 1.0. At 30fps, dtScale is 2.0.
-      const dtScale = dt * 60;
 
       const isActive = activeRef.current;
       const blobTarget = isActive ? tgtBlobs.current : DEFAULT_PALETTE.blobs as RGB[];
@@ -166,13 +164,12 @@ const EqVisualizer = () => {
       const waveTarget = isActive ? tgtWaves.current : DEFAULT_PALETTE.waves as RGB[];
 
       const cb = curBlobs.current;
-      for (let i = 0; i < 6; i++) cb[i] = lerpRgb(cb[i], blobTarget[i] ?? blobTarget[blobTarget.length - 1], dtScale);
-      curBg.current = lerpRgb(curBg.current, bgTarget, dtScale);
+      for (let i = 0; i < 6; i++) cb[i] = lerpRgb(cb[i], blobTarget[i] ?? blobTarget[blobTarget.length - 1]);
+      curBg.current = lerpRgb(curBg.current, bgTarget);
 
       const cw = curWaves.current;
-      for (let i = 0; i < 5; i++) cw[i] = lerpRgb(cw[i], waveTarget[i], dtScale);
+      for (let i = 0; i < 5; i++) cw[i] = lerpRgb(cw[i], waveTarget[i]);
 
-      // ── Blob Background ───────────────────────────────────────────────────
       const lCW = window.innerWidth + PADDING * 2;
       const lCH = window.innerHeight + PADDING * 2;
       const lVW = window.innerWidth;
@@ -207,20 +204,20 @@ const EqVisualizer = () => {
       });
       bCtx!.restore();
 
-      // ── Wave Foreground ─────────────────────────────────────────────────
       // @ts-ignore
       const wCW = wCanvas.width;
       // @ts-ignore
       const wCH = wCanvas.height;
 
       const targetOp = isActive ? 1.0 : 0.22;
-      opacRef.current += (targetOp - opacRef.current) * (0.022 * dtScale);
+      opacRef.current += (targetOp - opacRef.current) * 0.022;
       const op = opacRef.current;
 
       wCtx!.clearRect(0, 0, wCW, wCH);
 
       if (op >= 0.01) {
         LAYERS.forEach((layer, li) => {
+          // ALL LAYERS RETAINED - NO CULLING
           wavePhasesRef.current[li][0] += dt * layer.speeds[0];
           wavePhasesRef.current[li][1] += dt * layer.speeds[1];
           wavePhasesRef.current[li][2] += dt * layer.speeds[2];
@@ -244,22 +241,18 @@ const EqVisualizer = () => {
         const rawB = avg(1, 8);
         const rawM = avg(8, 60);
 
-        // Floor scales with time
-        bassFloor.current += (rawB - bassFloor.current) * (rawB > bassFloor.current ? 0.005 : 0.02) * dtScale;
-        midFloor.current  += (rawM - midFloor.current)  * (rawM > midFloor.current  ? 0.005 : 0.02) * dtScale;
+        bassFloor.current += (rawB - bassFloor.current) * (rawB > bassFloor.current ? 0.005 : 0.02);
+        midFloor.current  += (rawM - midFloor.current)  * (rawM > midFloor.current  ? 0.005 : 0.02);
 
         const bassRaw = Math.min(1, Math.max(0, rawB - bassFloor.current) * 3.5);
         const midRaw  = Math.min(1, Math.max(0, rawM - midFloor.current) * 3.0);
 
-        // Pass dtScale to the springs to keep tension accurate at all framerates
-        const bassVal = spr(bassS.current, bassRaw, 0.15, 0.65, dtScale);
-        const midVal  = spr(midS.current,  midRaw,  0.15, 0.70, dtScale);
+        const bassVal = spr(bassS.current, bassRaw, 0.15, 0.65);
+        const midVal  = spr(midS.current,  midRaw,  0.15, 0.70);
 
         if (bassRaw - prevBassR.current > 0.15) beatRef.current = 1.0;
-
-        // Decay exponentially over time, not frames
-        beatRef.current *= Math.pow(0.90, dtScale);
-        prevBassR.current = bassRaw;
+        beatRef.current   *= 0.90;
+        prevBassR.current  = bassRaw;
 
         const breathe   = 1 + 0.030 * Math.sin(now * 0.00065);
         const beatBoost = 1 + beatRef.current * 0.38;
@@ -268,7 +261,6 @@ const EqVisualizer = () => {
           const ph  = wavePhasesRef.current[li];
           const rgb = cw[layer.pi];
 
-          // Revert back to original STEP math to fix aliasing/desync
           const STEP = layer.blur > 8 ? 14 : layer.blur > 0 ? 7 : 4;
           const N    = Math.min(Math.ceil(wCW / STEP) + 2, MAX_N);
 
@@ -295,9 +287,9 @@ const EqVisualizer = () => {
 
           wCtx!.save();
 
-          // KEEP THIS: Disable Canvas Filter on mobile
-          if (layer.blur > 0 && !isMobileRef.current) {
-            wCtx!.filter = `blur(${layer.blur}px)`;
+          // EXPLICIT MOBILE CHECK: Disables expensive blur filter
+          if (layer.blur > 0) {
+            wCtx!.filter = isMobile ? "none" : `blur(${layer.blur}px)`;
           } else {
             wCtx!.filter = "none";
           }
@@ -317,12 +309,13 @@ const EqVisualizer = () => {
           wCtx!.fill();
 
           if (layer.blur === 0) {
-            // KEEP THIS: Disable expensive shadows on mobile
-            if (!isMobileRef.current) {
+            // EXPLICIT MOBILE CHECK: Disables expensive drop shadows
+            if (!isMobile) {
               wCtx!.shadowBlur  = 22 + bassVal * 18;
               wCtx!.shadowColor = `rgba(${cs(rgb)}, 0.55)`;
             } else {
               wCtx!.shadowBlur = 0;
+              wCtx!.shadowColor = "transparent";
             }
 
             wCtx!.beginPath();
