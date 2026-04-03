@@ -117,28 +117,27 @@ export const AudioPlayerProvider = ({ children }: Props) => {
     repeatModeRef.current = repeatMode;
   }, [repeatMode]);
 
+// 1. Put this back to normal
   const getOrCreateAudio = useCallback((): HTMLAudioElement => {
     if (!audioRef.current) {
       audioRef.current = new Audio();
+      audioRef.current.crossOrigin = "anonymous"; // WE NEED THIS BACK
+
       if (typeof window !== "undefined") {
         try {
-          const AudioCtx =
-            window.AudioContext || (window as any).webkitAudioContext;
+          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
           const actx = new AudioCtx({ latencyHint: "interactive" });
 
           const source = actx.createMediaElementSource(audioRef.current);
           const analyser = actx.createAnalyser();
-          const gainNode = actx.createGain(); // Create Web Audio volume control
+          const gainNode = actx.createGain();
 
           analyser.fftSize = 2048;
           analyser.smoothingTimeConstant = 0.82;
 
-          // Initial volume setup to avoid blasting at 100% on start
           const savedVolume = parseFloat(localStorage.getItem(VOLUME_KEY) ?? "0.5");
           gainNode.gain.value = savedVolume;
 
-          // PROPER ROUTING:
-          // Source -> Analyser (Visualizer) -> GainNode (Volume) -> Destination (Speakers)
           source.connect(analyser);
           analyser.connect(gainNode);
           gainNode.connect(actx.destination);
@@ -147,16 +146,16 @@ export const AudioPlayerProvider = ({ children }: Props) => {
           gainNodeRef.current = gainNode;
           setAnalyserNode(analyser);
 
-          // Force the HTMLAudioElement to 100%. Web Audio GainNode handles the volume now!
           audioRef.current.volume = 1;
-        } catch {
-          // Web Audio not supported
+        } catch (err) {
+          console.error("Web Audio API failed to initialize", err);
         }
       }
     }
     return audioRef.current;
   }, []);
 
+// 2. Add the cache-buster here
   const loadAndPlayIndex = useCallback(
     (index: number) => {
       const song = queueRef.current[index];
@@ -165,10 +164,14 @@ export const AudioPlayerProvider = ({ children }: Props) => {
       currentIndexRef.current = index;
 
       const audio = getOrCreateAudio();
-      audio.src = song.url;
+
+      // FORCE A FRESH CORS REQUEST by appending a unique timestamp
+      const cacheBuster = `?cb=${new Date().getTime()}`;
+      audio.src = `${song.url}${cacheBuster}`;
+
       audio.load();
-      audio.play().catch(() => {
-        // Autoplay may be blocked; ignore
+      audio.play().catch((err) => {
+        console.error("Playback failed:", err);
       });
 
       setNowPlayingItem(songToMediaItem(song));
