@@ -9,11 +9,12 @@ import re
 
 BASE_DIR = "/Users/miti/Music/deemixMusic/ipod"
 BASE_URL = "https://music.miti.wtf"
-THUMB_DIR = "thumbnail"  # folder to store thumbnails
+THUMB_DIR = "thumbnail"
 os.makedirs(THUMB_DIR, exist_ok=True)
 
 def sanitize_filename(name):
     """Replace characters illegal in filenames with underscore"""
+    # Added ? to the regex to match your 'Que Dirá?' example
     return re.sub(r'[\\/*?:"<>|]', "_", name)
 
 music_data = {}
@@ -23,8 +24,6 @@ for folder in os.listdir(BASE_DIR):
 
     if os.path.isdir(folder_path):
         songs = []
-
-        # make folder for thumbnails
         safe_folder_name = sanitize_filename(folder.replace(" ", "_"))
         folder_thumb_path = os.path.join(THUMB_DIR, safe_folder_name)
         os.makedirs(folder_thumb_path, exist_ok=True)
@@ -36,7 +35,6 @@ for folder in os.listdir(BASE_DIR):
             mp3_path = os.path.join(folder_path, file)
             audio = MP3(mp3_path, ID3=ID3)
 
-            # default values
             artist = "Unknown Artist"
             title = os.path.splitext(file)[0]
             album = folder
@@ -44,7 +42,6 @@ for folder in os.listdir(BASE_DIR):
             year = None
             thumbnail_url = f"{BASE_URL}/default_thumb.jpg"
 
-            # read ID3 tags
             if audio.tags:
                 artist_tag = audio.tags.get("TPE1")
                 title_tag = audio.tags.get("TIT2")
@@ -53,7 +50,8 @@ for folder in os.listdir(BASE_DIR):
                 year_tag = audio.tags.get("TDRC")
 
                 if artist_tag:
-                    artist = str(artist_tag)
+                    # Replace null-byte separators with ", "
+                    artist = str(artist_tag).replace("\u0000", ", ")
                 if title_tag:
                     title = str(title_tag)
                 if album_tag:
@@ -63,22 +61,22 @@ for folder in os.listdir(BASE_DIR):
                 if year_tag:
                     year = str(year_tag)
 
-                # extract embedded album art
+                # Generate the sanitized name BEFORE the loop to ensure consistency
+                safe_thumb_filename = sanitize_filename(title) + ".jpg"
+
                 for tag in audio.tags.values():
                     if isinstance(tag, APIC):
                         image_data = tag.data
                         image = Image.open(BytesIO(image_data))
                         image.thumbnail((200, 200))
 
-                        # safe local filename
-                        safe_file_name_local = sanitize_filename(title) + ".jpg"
-                        thumb_file_path = os.path.join(folder_thumb_path, safe_file_name_local)
+                        # Save using the sanitized name
+                        thumb_file_path = os.path.join(folder_thumb_path, safe_thumb_filename)
                         image.save(thumb_file_path, format="JPEG")
 
-                        # URL for JSON
-                        safe_file_name_url = quote(title) + ".jpg"
-                        thumbnail_url = f"{BASE_URL}/{THUMB_DIR}/{quote(safe_folder_name)}/{safe_file_name_url}"
-                        break  # only first image per song
+                        # URL now uses the EXACT same sanitized filename as the storage
+                        thumbnail_url = f"{BASE_URL}/{THUMB_DIR}/{quote(safe_folder_name)}/{quote(safe_thumb_filename)}"
+                        break
 
             song = {
                 "artist": artist,
@@ -93,7 +91,6 @@ for folder in os.listdir(BASE_DIR):
 
             songs.append(song)
 
-        # sort by artist -> album -> track
         def song_sort_key(s):
             t = s["track"]
             try:
@@ -105,8 +102,7 @@ for folder in os.listdir(BASE_DIR):
         songs.sort(key=song_sort_key)
         music_data[folder] = songs
 
-# write JSON
 with open("music.json", "w", encoding="utf-8") as f:
     json.dump(music_data, f, indent=2, ensure_ascii=False)
 
-print("✅ music.json generated with full metadata and safe thumbnails!")
+print("✅ music.json updated! Artists cleaned and Thumbnails synced.")
