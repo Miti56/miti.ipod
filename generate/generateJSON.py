@@ -3,7 +3,7 @@ import json
 from urllib.parse import quote
 
 BASE_DIR = "/Users/miti/Music/deemixMusic/ipod"
-BASE_URL = "https://pub-930d78549e564d628184df9a65b61e73.r2.dev"
+BASE_URL = "https://music.miti.wtf"
 
 music_data = {}
 
