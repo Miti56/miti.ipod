@@ -120,7 +120,6 @@ export const AudioPlayerProvider = ({ children }: Props) => {
   const getOrCreateAudio = useCallback((): HTMLAudioElement => {
     if (!audioRef.current) {
       audioRef.current = new Audio();
-      audioRef.current.crossOrigin = "anonymous";
       if (typeof window !== "undefined") {
         try {
           const AudioCtx =
